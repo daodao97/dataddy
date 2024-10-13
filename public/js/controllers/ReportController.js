@@ -661,11 +661,14 @@ var render_chart = (function(){
             }
         }
         // 防止 x轴 文本相互覆盖
-        if (options.type == 'serial' && $rows.length > 20) {
+        if (options.type == 'serial' && $rows.length > 10) {
+            console.log("rows length:", $rows.length)
             options.categoryAxis = {
                 ...options.categoryAxis,
-                labelRotation: 35
-            }
+                labelRotation: 45,
+                gridCount: Math.min($rows.length, 10)
+            };
+            options.marginBottom = 100;
         }
 
         if (options.type == 'pie') {

@@ -52,6 +52,12 @@
                 </div>
             <?php endif; ?>
 
+            <?php if (@$rdata['options']['notice']): ?>
+                <div class="alert alert-success" style="margin-bottom: 0px;">
+                    <?= implode("<br/>", is_array($rdata['options']['notice']) ? $rdata['options']['notice'] : [$rdata['options']['notice']]) ?>
+                </div>
+            <?php endif; ?>
+
             <?php if (@$rdata['chart_options'] && $rdata['rows'] && count($rdata['rows']) > 1): ?>
                 <style type="text/css">
                     #report-cnt div.chart {

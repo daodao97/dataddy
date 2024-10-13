@@ -2087,7 +2087,7 @@ function rows_date_line($arr, $conf, $data) {
     }
 
     $field = $conf['field'] ?? 'date';
- 
+
     $format = get_date_format($arr[0][$field]);
     if ($format == null) {
         return $arr;
@@ -2146,18 +2146,37 @@ function rows_date_line($arr, $conf, $data) {
 }
 
 function get_date_format($dateString) {
-    $dateTime = \DateTime::createFromFormat('Y-m-d H', $dateString);
-    if ($dateTime !== false) {
-        return 'Y-m-d H';
-    }
+    $formats = [
+        'Y-m-d H:i:s',  // 2024-10-13 20:00:00
+        'Y-m-d H:i',    // 2024-10-13 20:00
+        'Y-m-d H',      // 2024-10-13 20
+        'Y-m-d',        // 2024-10-13
+        'd-m-Y H:i:s',  // 13-10-2024 20:00:00
+        'd-m-Y H:i',    // 13-10-2024 20:00
+        'd-m-Y H',      // 13-10-2024 20
+        'd-m-Y',        // 13-10-2024
+        'Y/m/d H:i:s',  // 2024/10/13 20:00:00
+        'Y/m/d H:i',    // 2024/10/13 20:00
+        'Y/m/d H',      // 2024/10/13 20
+        'Y/m/d',        // 2024/10/13
+        'd/m/Y H:i:s',  // 13/10/2024 20:00:00
+        'd/m/Y H:i',    // 13/10/2024 20:00
+        'd/m/Y H',      // 13/10/2024 20
+        'd/m/Y',        // 13/10/2024
+        'Y.m.d H:i:s',  // 2024.10.13 20:00:00
+        'Y.m.d H:i',    // 2024.10.13 20:00
+        'Y.m.d H',      // 2024.10.13 20
+        'Y.m.d',        // 2024.10.13
+    ];
 
-    $dateTime = \DateTime::createFromFormat('Y-m-d', $dateString);
-    if ($dateTime !== false) {
-        return 'Y-m-d';
+    foreach ($formats as $format) {
+        $dateTime = \DateTime::createFromFormat($format, $dateString);
+        if ($dateTime !== false && $dateTime->format($format) === $dateString) {
+            return $format;
+        }
     }
 
     return null;
 }
-
 
 /* End of file filename.php */
