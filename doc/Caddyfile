@@ -1,0 +1,18 @@
+http://ddy.com {
+	root * /Users/xxx/work/dataddy/public
+
+	log {
+        output file /opt/homebrew/var/log/caddy/ddy.access.log
+        format console
+    }
+
+ 	php_fastcgi 127.0.0.1:9000 {
+        root /yaf/public
+ 	}
+	@rewrite {
+   		not file
+    	path_regexp .*
+ 	 }
+  	rewrite @rewrite /index.php/{http.regexp.0}
+    file_server
+}

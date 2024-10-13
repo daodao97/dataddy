@@ -1,0 +1,43 @@
+services:
+  # db
+  mysql.5.7:
+    image: mysql:8
+    command: --mysql-native-password=ON --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    restart: always
+    environment:
+      TZ: Asia/Shanghai 
+      MYSQL_DATABASE: 'dataddy'   
+      MYSQL_USER: 'dataddy'
+      MYSQL_PASSWORD: 'dataddy'      
+      MYSQL_ROOT_PASSWORD: 'root'
+    ports:
+      - '3306:3306'
+    volumes:
+      - './dbdata3:/var/lib/mysql'
+      - ./initdb:/docker-entrypoint-initdb.d
+  # php-yaf
+  ddy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # image: ddy:latest
+    # ports:
+    #   - "9000:9000"
+    volumes:
+     - ../:/yaf
+    depends_on:
+      - mysql.5.7
+    environment:
+      - TZ=Asia/Shanghai
+    restart: always
+  # caddy 代理
+  caddy:
+    image: caddy:latest
+    ports:
+      - "8100:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ../:/data
+    depends_on:
+      - ddy
+    restart: always

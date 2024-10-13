@@ -1,0 +1,15 @@
+:80 {
+	root * /data/public
+
+ 	php_fastcgi ddy:9000 {
+        root /yaf/public
+ 	}
+
+	@rewrite {
+   		not file
+    	path_regexp .*
+ 	}
+
+  	rewrite @rewrite /index.php/{http.regexp.0}
+    file_server
+}

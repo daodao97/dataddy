@@ -1,0 +1,19 @@
+#!/bin/sh
+
+echo "----composer install----"
+cd /yaf
+sudo mkdir -p /yaf/vendor
+sudo chown -R www:www /yaf/vendor
+sudo -u www /usr/bin/composer install
+cd -
+
+sleep 5
+echo "----build crontab----"
+# sudo -u www /usr/bin/php /yaf/script/dataddy_cli buildCron
+/usr/bin/php /yaf/script/dataddy_cli buildCron
+
+echo "\n"
+
+
+echo "----start fpm----"
+exec /usr/bin/php-fpm -F
