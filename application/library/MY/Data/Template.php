@@ -2107,13 +2107,33 @@ function rows_date_line($arr, $conf, $data) {
         return $a < $b ? -1 : 1;
     });
 
-
     $hour = strpos($format, "H") !== false;
 
-    // 填补缺失的小时
+    // 使用当前时间作为默认的结束时间
+    $currentTime = new \DateTime();
+    $lastDateTime = end($dateTimes);
+    if ($lastDateTime < $currentTime) {
+        $lastDateTime = $currentTime;
+    }
+
+    $start = $conf["start"];
+
+    // 计算起始日期
+    $startDateTime = null;
+    if (!empty($start)) {
+        $startDateTime = new \DateTime();
+        $startDateTime->modify($start);
+    }
+
+    // 填补缺失的小时或天
     $completedDates = [];
     $currentDateTime = reset($dateTimes);
-    $lastDateTime = end($dateTimes);
+
+    // 如果设置了起始日期且当前日期小于起始日期，则使用起始日期
+    if ($startDateTime !== null && $startDateTime < $currentDateTime) {
+        $currentDateTime = $startDateTime;
+    }
+
     while ($currentDateTime <= $lastDateTime) {
         $completedDates[] = $currentDateTime->format($format);
         if ($hour) {
@@ -2125,10 +2145,6 @@ function rows_date_line($arr, $conf, $data) {
 
     $newArr = [];
 
-    // echo '<pre>';
-    // print_r($completedDates);
-    // echo '</pre>';
-
     $tmp = [];
     foreach($arr as $item) {
         $tmp[$item[$field]] = $item;
@@ -2137,10 +2153,6 @@ function rows_date_line($arr, $conf, $data) {
     foreach($completedDates as $date) {
         $newArr[] = isset($tmp[$date]) ? $tmp[$date] : [$field => $date];
     }
-
-    // echo '<pre>';
-    // print_r($newArr);
-    // echo '</pre>';
 
     return $newArr;
 }

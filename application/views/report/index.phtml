@@ -253,8 +253,8 @@
                                         ?>
 
                                         <?php if ($link): ?>
-                                            <td>
-                                                <a href="<?= $link ?>" <?= $attrs ?>>
+                                            <td style="max-width: 300px; word-wrap: break-word; white-space: normal;">
+                                                <a target="_blank" href="<?= $link ?>" <?= $attrs ?>>
                                                     <?= $val ?>
                                                 </a>
                                                 <?php if ($tooltip): ?>
@@ -262,13 +262,13 @@
                                                 <?php endif; ?>
                                             </td>
                                         <?php else: ?>
-                                            <td<?= $attrs ?>>
+                                            <td<?= $attrs ?> style="max-width: 300px; word-wrap: break-word; white-space: normal;">
                                                 <?= $val ?>
                                                 <?php if ($tooltip): ?>
                                                     <i class="fa fa-question-circle"></i>
                                                 <?php endif; ?>
-                                                </td>
-                                            <?php endif; ?>
+                                            </td>
+                                        <?php endif; ?>
 
                                         <?php endforeach; ?>
                                         </tr>

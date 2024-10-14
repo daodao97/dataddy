@@ -329,6 +329,18 @@ class ReportController extends MY\Controller_Abstract
                 $chart_options = $options['charts'][$report_id];
             }
 
+            if (isset($report['options']['chart'])) {
+                $chart_options =  $report['options']['chart'];
+                
+                // 尝试解析为 JSON
+                if (is_string($chart_options) && substr(trim($chart_options), 0, 1) === '{') {
+                    $parsed_options = json_decode($chart_options, true);
+                    if (json_last_error() === JSON_ERROR_NONE) {
+                        $chart_options = $parsed_options;
+                    }
+                }
+            }
+
             if (isset($GLOBALS['ddy_chart_options']) && isset($GLOBALS['ddy_chart_options'][$report_id])) {
                 if (is_array($GLOBALS['ddy_chart_options'][$report_id])) {
                     $chart_options = array_merge($chart_options, $GLOBALS['ddy_chart_options'][$report_id]);

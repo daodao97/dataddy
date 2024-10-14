@@ -165,8 +165,7 @@ MetronicApp.directive('menuItem', function($compile) {
             }
 
             // 浏览器页面刷新场景, 增加菜单状态回显
-            if (location.hash == scope.item.url) {
-                console.log(location.hash);
+            if (location.hash.replace(/\?.*$/, '') == scope.item.url) {
                 element.addClass('active');
                 $(element).parents()
                 .filter((i, e) => {
