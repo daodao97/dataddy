@@ -627,10 +627,10 @@ EOT;
 
         // 替换宏变量
         $sql = $this->_macro(trim($sql));
-
+        
         // 解析行插件
         ## column config
-        if (preg_match_all('@AS\s+([`\'"]?)([^\'"`]+?)\1\s*,?\s*--\s+\@(.+?)\s*$@uim', $sql, $ma)) {
+        if (preg_match_all('@AS\s+([`\'"]?)([^\'"`\r\n]+?)\1\s*,?\s*--\s+\@(.+?)\s*$@uim', remove_sql_comment_line($sql), $ma)) {
             foreach ($ma[2] as $i => $field) {
                 $field_config = $ma[3][$i];
                 if (preg_match('@^\{\s*".+\}$@', $field_config)) {
@@ -2192,3 +2192,16 @@ function get_date_format($dateString) {
 }
 
 /* End of file filename.php */
+
+
+function remove_sql_comment_line($sql)
+{
+    // 使用正则表达式匹配以 -- 开头的行，并将其替换为空字符串
+    $sql = preg_replace('/^\s*--.*$/m', '', $sql);
+    
+    // 移除可能产生的多余空行
+    $sql = preg_replace('/^\s*[\r\n]+/m', '', $sql);
+    
+    // 去除首尾空白字符
+    return trim($sql);
+}
