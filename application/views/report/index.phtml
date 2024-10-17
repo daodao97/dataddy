@@ -283,6 +283,7 @@
                     </table>
                     <?php if ($rdata['options']): ?>
                         <script>
+                            console.log(<?= json_encode($rdata['options']) ?>);
                             set_table_options('<?= $report_id ?>', <?= json_encode($rdata['options']) ?>);
                         </script>
                     <?php endif; ?>

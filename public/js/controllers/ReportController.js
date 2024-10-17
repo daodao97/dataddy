@@ -167,11 +167,22 @@ MetronicApp.controller('ReportController', ['$rootScope', '$scope', '$http', '$l
         var table_options = $table.data('options') || {};
         var options = table_options.dt ? table_options.dt : {};
         var vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+        // 如果表格数据行数大于20行，并且视口宽度大于1000px，则启用表头吸顶
         if ($table.find('tbody.items tr').length > 20 && vw > 1000) {
-            options.hasFixedHeader = true;
-            options.fixedHeaderOptions = {
-                offsetTop : $('.navbar').height()
-            };
+            // 注释掉固定表头，使用延迟初始化固定表头
+            // 直接使用会造成首次渲染双表头
+            // options.hasFixedHeader = true;
+            // options.fixedHeaderOptions = {
+            //     offsetTop : $('.navbar').height()
+            // };
+            
+            // 添加延迟初始化固定表头
+            $timeout(function() {
+                var table = $table.DataTable();
+                new $.fn.dataTable.FixedHeader(table, {
+                    offsetTop : $('.navbar').height()
+                });
+            }, 100);
         }
 
         var is_time = /时间|日期|month|time|date|hour/.test($table.find('thead th:eq(0)').text());
