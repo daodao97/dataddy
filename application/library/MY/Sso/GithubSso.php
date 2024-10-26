@@ -47,6 +47,12 @@ class Sso_GithubSso extends \MY\Plugin_Abstract implements Sso_Interface
         ]);
 
         $res = json_decode($res, true);
+
+
+        if (isset($res['error'])) {
+            throw new \Exception("Github SSO 认证失败: " . $res['error_description']);
+        }
+
         if (!isset($res['access_token'])) {
             return false;
         }

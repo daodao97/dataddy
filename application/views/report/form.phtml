@@ -1,0 +1,20 @@
+<form class="form-horizontal" id="<?= $id;?>-form" name="form" novalidate autocomplete="off">
+    <div class="form-body">
+            <?php $form_names = []; ?>
+        <?php foreach ($forms as $form) :?>
+            <div class="form-group">
+                <label class="control-label col-md-3">
+                    <?php echo $form->display_label(); ?>
+                </label>
+                <div class="col-md-4">
+                    <?php echo $form->display_widget(); ?>
+                </div>
+            </div>
+        <?php endforeach;?>
+        
+    </div>
+</form>
+
+<script>
+    // render_select2("#<?= $id;?>-form select");
+</script>

@@ -7,6 +7,7 @@ MetronicApp.controller('ReportController', ['$rootScope', '$scope', '$http', '$l
 
     $scope.edit_mode = false;
     $scope.writeable = false;
+    $scope.form_enable = false;
     $scope.autorefresh = false;
     $scope.seconds = 0;
     $scope.subject = '';
@@ -246,59 +247,7 @@ MetronicApp.controller('ReportController', ['$rootScope', '$scope', '$http', '$l
 
             report_loading(false);
 
-            $('#report-cnt select').each(function(i, elem) {
-                var $elem = $(elem),
-                options = {
-                  dropdownAutoWidth: true,
-                  allowClear: true,
-                  language: 'zh-CN',
-                  selected: true,
-                  placeholder: "请选择"
-                },
-                data_url = $elem.attr('data-url');
-                if (data_url) {
-                    options.ajax = {
-                        url: data_url,
-                        dataType: 'json'
-                    }
-                }
-                $elem.select2(options);
-
-                // select 多选时 结果值的排序保持与点击是的顺序一致
-                if ($elem.attr('multiple') && $elem.attr('order')) {
-                    let val = get_url_params()[$elem.attr('name').replace('[]', '')]
-                    console.log(val)
-                    if (val !== undefined) {
-                        $elem.val(val).trigger('change')
-                        var $options = $elem.find('option');
-                        // 移除原有的选项
-                        $options.each(function() { 
-                            if ($(this).is(':selected')) {
-                                $(this).detach(); 
-                            }
-                        })
-                        // 按照 `val` 中的顺序添加选项
-                        val.forEach(function(value) {
-                            $elem.append($options.filter('[value="' + value + '"]'));
-                        });
-                    }
-                    $elem.on("select2:select", function(evt) {
-                        var element=evt.params.data.element;
-                        var $element=$(element);
-                        $element.detach();
-                        $(this).append($element);
-                        $(this).trigger("change");
-                    });
-                }
-                if ($elem.attr('multiple') && $elem.attr('tags')) {
-                    $elem.on("select2:select", function(e) {
-                        var selectedElement = e.params.data;
-                        var newOption = new Option(selectedElement.text, selectedElement.id, false, false);
-                        // 将选项再次添加到 Select2 控件中
-                        $(this).append(newOption).trigger('change');
-                    });
-                }
-            });
+            render_select2();
 
             $('#report-cnt .form-search').submit(function(event) {
                 event.preventDefault();
@@ -411,6 +360,69 @@ MetronicApp.controller('ReportController', ['$rootScope', '$scope', '$http', '$l
         });
     };
 
+    $scope.show_form = function() {
+        var param = 'id=' + report_id;
+
+        if ($stateParams.query) {
+            param += '&' + $stateParams.query;
+        }
+
+        var pscope = $scope;
+        $modal.open({
+            template: '<div class="modal-header">' +
+                      '  <button type="button" class="close" data-dismiss="modal" aria-hidden="true" ng-click="$dismiss()"></button>' +
+                      '  <h4 class="modal-title">{{title}}</h4>' +
+                      '</div>' +
+                      '<div class="form-body form sent-email" ng-bind-html="formContent"></div>' +
+                      '<div class="modal-footer">' +
+                      '  <button class="btn btn-primary" ng-click="ok()">保存</button>' +
+                      '  <button class="btn btn-warning" ng-click="$dismiss()">取消</button>' +
+                      '</div>',
+            size: '',
+            resolve: {
+                formContent: function($http) {
+                    return $http.get('/report/form?id=' + report_id).then(function(response) {
+                        return response.data;
+                    });
+                }
+            },
+            controller: function($scope, $modalInstance, $sce, formContent) {
+                $scope.title = "创建";
+                $scope.formContent = $sce.trustAsHtml(formContent);
+
+                $scope.formData = {}; // 用于存储表单数据
+
+                setTimeout(() => render_select2('#' + report_id + '-form select', true), 100)
+                
+                $scope.ok = function() {
+                    // 获取表单数据
+                    var form = document.getElementById(report_id + '-form');
+                    if (!form) {
+                        Notification.error("表单未找到");
+                        return;
+                    }
+                    
+                    var formData = new FormData(form);
+                    
+                    // 将表单数据转换为对象
+                    for (var pair of formData.entries()) {
+                        $scope.formData[pair[0]] = pair[1];
+                    }
+                    
+                    $http.post('/report/saveform?id=' + report_id, $scope.formData).success(function(response) {
+                        if (response && response.code == 0) {
+                            $modalInstance.close();
+
+                            load_report()
+                            return;
+                        }
+                        Notification.error("保存表单失败：" + (response ? response.message : ''));
+                    });
+                };
+            }
+        });
+    };
+
     $scope.send_mail = function() {
         var param = 'id=' + report_id;
 
@@ -476,6 +488,74 @@ MetronicApp.controller('ReportController', ['$rootScope', '$scope', '$http', '$l
 var parseNumberFromElem = function ($elem) {
   return 1 * (parseFloat($.trim($elem.text()).replace(/\s+.+$/, '').replace(/[,%]/g, '')) || 0);
 };
+
+
+var render_select2 = function(selectors, is_modal = false) {
+    selectors = $(selectors || '#report-cnt select');
+
+    selectors.each(function(i, elem) {
+        var $elem = $(elem),
+
+        options = {
+          dropdownAutoWidth: true,
+          allowClear: true,
+          language: 'zh-CN',
+          selected: true,
+          placeholder: "请选择",
+          dropdownParent: is_modal ? $elem.closest('.modal-content') : null // 指定下拉菜单的父元素
+        },
+        data_url = $elem.attr('data-url');
+        if (data_url) {
+            options.ajax = {
+                url: data_url,
+                dataType: 'json'
+            }
+        }
+
+        if ($elem.hasClass('select2-hidden-accessible')) {
+            $elem.select2('destroy');
+        }
+
+
+        $elem.select2(options);
+
+        // select 多选时 结果值的排序保持与点击是的顺序一致
+        if ($elem.attr('multiple') && $elem.attr('order')) {
+            let val = get_url_params()[$elem.attr('name').replace('[]', '')]
+            console.log(val)
+            if (val !== undefined) {
+                $elem.val(val).trigger('change')
+                var $options = $elem.find('option');
+                // 移除原有的选项
+                $options.each(function() { 
+                    if ($(this).is(':selected')) {
+                        $(this).detach(); 
+                    }
+                })
+                // 按照 `val` 中的顺序添加选项
+                val.forEach(function(value) {
+                    $elem.append($options.filter('[value="' + value + '"]'));
+                });
+            }
+            $elem.on("select2:select", function(evt) {
+                var element=evt.params.data.element;
+                var $element=$(element);
+                $element.detach();
+                $(this).append($element);
+                $(this).trigger("change");
+            });
+        }
+        if ($elem.attr('multiple') && $elem.attr('tags')) {
+            $elem.on("select2:select", function(e) {
+                var selectedElement = e.params.data;
+                var newOption = new Option(selectedElement.text, selectedElement.id, false, false);
+                // 将选项再次添加到 Select2 控件中
+                $(this).append(newOption).trigger('change');
+            });
+        }
+    });
+};
+
 
 var render_chart = (function(){
 
@@ -998,3 +1078,7 @@ function DataddyEditor($log, report_id, tid, $table, options, $stateParams)
         });
     });
 }
+
+
+
+

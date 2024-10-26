@@ -80,7 +80,11 @@ class LoginController extends MY\Controller_Abstract
 
         param_request(['redirect_uri' => 'STRING']);
 
-        $authInfo = $this->sso->auth();
+        try {
+            $authInfo = $this->sso->auth();
+        } catch (\Exception $e) {
+            return $this->error($e->getMessage());
+        }
 
         if (!$authInfo) {
 

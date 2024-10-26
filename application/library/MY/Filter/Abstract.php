@@ -203,6 +203,16 @@ abstract class Filter_Abstract extends Plugin_Abstract {
         }
     }
 
+    public function display_label()
+    {
+        return $this->_labelView();
+    }
+
+    public function display_widget()
+    {
+        return $this->view();
+    }
+
     public abstract function view();
 
     protected function _labelView()

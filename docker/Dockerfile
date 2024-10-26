@@ -8,7 +8,10 @@ RUN apk update && \
 
 RUN echo "yaf.use_namespace = On" >> /etc/php7/conf.d/yaf.ini
 
-RUN chmod u+s $(which crontab)      
+RUN addgroup -S www && adduser -S -G www www
+RUN chmod u+s $(which crontab)
+RUN chown root:www /usr/sbin/crond
+RUN chmod 4755 /usr/sbin/crond  
 
 RUN rm -rf /var/cache/apk/*
 

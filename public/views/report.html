@@ -5,6 +5,7 @@
     <a class="btn btn-xs blue" href="javascript:;" ng-click="send_mail()" ng-show="writeable"><i class="fa fa-envelope"></i> 发送邮件</a>
     <a class="btn btn-xs blue" href="javascript:;" ng-click="refresh()"><i class="fa fa-refresh"></i> 刷新</a>
     <a class="btn btn-xs yellow" href="javascript:;" ng-click="toggle_autorefresh()" ng-show="autorefresh"><i ng-class="{false:'fa fa-play', true:'fa fa-pause'}[stop_autorefresh]"></i>&nbsp;&nbsp;{{seconds}} 秒后刷新</a>
+    <a class="btn btn-xs blue" href="javascript:;" ng-click="show_form()" ng-show="form_enable"><i class="fa fa-plus"></i>新建</a>
     <span ng-show="dev_info.warning" style="color:red;font-size:11px">
       注意：你当前访问的是未发布的报表，修改时间：{{dev_info.dev_version_time}}
     </span>

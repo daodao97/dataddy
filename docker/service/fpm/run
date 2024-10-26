@@ -9,8 +9,9 @@ cd -
 
 sleep 5
 echo "----build crontab----"
-# sudo -u www /usr/bin/php /yaf/script/dataddy_cli buildCron
-/usr/bin/php /yaf/script/dataddy_cli buildCron
+sudo -u www /usr/bin/php /yaf/script/dataddy_cli buildCron
+sudo -u www /usr/bin/php /yaf/script/dataddy_cli buildCron
+# /usr/bin/php /yaf/script/dataddy_cli buildCron
 
 echo "\n"
 

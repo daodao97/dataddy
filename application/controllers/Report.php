@@ -264,6 +264,7 @@ class ReportController extends MY\Controller_Abstract
         $template_data = [
             '$root.$state.current.data.pageTitle' => array_last(preg_split('@/@u', $info['name'])),
             'writeable' => P("report.{$id}", 'w'),
+            'form_enable' => false,
             'autorefresh' => d(@$options['auto_refresh'], 0),
             'subject' => $info['name'],
             'receiver' => d(@$this->mail_config['receiver'], ''),
@@ -298,6 +299,10 @@ class ReportController extends MY\Controller_Abstract
         );
 
         try {
+            if (count($engine->getForms()) > 0) {
+                $template_data['form_enable'] = true;
+            }
+            
             $result = $engine->run();
 
         } catch (Exception $e) {
@@ -572,6 +577,102 @@ class ReportController extends MY\Controller_Abstract
             return response_error(CODE_ERR_SYSTEM, 'CRON build error');
         }
         return response("crontab build success");
+    }
+
+    public function formAction() {
+        param_request([
+            'id' => 'UINT',
+        ]);
+        $id = $GLOBALS['req_id'];
+        if (!$id || !($info = M('menuItem')->find($id)) || $info['type'] == 'folder') {
+            $this->error('404');
+
+            return FALSE;
+        }
+        $this->data['subject'] = $info['name'];
+
+        $use_dev_content = !R('is_cli') && R('permission')->check('menu.' . $id, 'w');
+        $content = $use_dev_content && $info['dev_content'] ? $info['dev_content'] : $info['content'];
+        $safe_code_field = $use_dev_content && $info['dev_content'] ? 'dev_safe_code' : 'safe_code';
+
+        $me = R('user');
+        $sql_log = new SqlLogModel([
+            'report_id' => $id,
+            'uid' => $me['id'] ?? 0,
+            'nick' => $me['nick'] ?? ''
+        ]);
+
+        $engine = new \MY\Data_Template(
+            $content,
+            $options,
+            $_GET,
+            R('permission'),
+            $info[$safe_code_field],
+            $this->filecache,
+            //null
+            $sql_log
+        );
+         
+        $this->data['id'] = $id;
+        $this->data['forms'] = $engine->getForms();
+
+        $this->display('../report/form', $this->data);
+        return FALSE;
+    }
+
+    public function saveformAction() {
+        param_request([
+            'id' => 'UINT',
+        ]);
+        $id = $GLOBALS['req_id'];
+        $data = $_POST;
+
+        if (!$id || !($info = M('menuItem')->find($id)) || $info['type'] == 'folder') {
+            return response_error(CODE_ERR_PARAM, 'id');
+        }
+        $this->data['subject'] = $info['name'];
+
+        $use_dev_content = !R('is_cli') && R('permission')->check('menu.' . $id, 'w');
+        $content = $use_dev_content && $info['dev_content'] ? $info['dev_content'] : $info['content'];
+        $safe_code_field = $use_dev_content && $info['dev_content'] ? 'dev_safe_code' : 'safe_code';
+
+        $me = R('user');
+        $sql_log = new SqlLogModel([
+            'report_id' => $id,
+            'uid' => $me['id'] ?? 0,
+            'nick' => $me['nick'] ?? ''
+        ]);
+
+        try {
+            $engine = new \MY\Data_Template(
+                $content,
+                $options,
+                $_GET,
+                R('permission'),
+                $info[$safe_code_field],
+                $this->filecache,
+                //null
+                $sql_log
+            );
+
+            $this->data['forms'] = $engine->getForms();
+
+            $check = is_callable("ddy_save_form_handler");
+            if (!$check) {
+                return response_error(CODE_ERR_PARAM, 'save form handler not defined');
+            }
+    
+            try {
+                $result = call_user_func_array("ddy_save_form_handler", [$id, $data]);
+                return response($result);
+            } catch (Exception $e) {
+                return response_error(CODE_ERR_SYSTEM, $e->getMessage());
+            }
+    
+        } catch (Exception $e) {
+            return response_error(CODE_ERR_SYSTEM, "$e");
+        }
+
     }
 }
 /* End of file Index.php */

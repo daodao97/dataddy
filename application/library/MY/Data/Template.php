@@ -14,6 +14,7 @@ class Data_Template
     protected $_sandbox;
     protected $_data;
     protected $_filters = [];
+    protected $_forms = [];
     protected $_options = [];
     protected $_macro = [];
     protected $_permission = NULL;
@@ -189,6 +190,58 @@ class Data_Template
             }
             throw new \Exception("PHP ERROR:$errstr:$errfile:$errline");
         });
+    }
+
+    public function getForms()
+    {
+        $content = $this->preparse();
+
+        // 解析 表单控件
+        # tpl  : @{name|label|default|type(params)}
+        # type : date|string|enum(val1,val2,val3)|macro(val1,val2,val3)
+        # @todo 类型定义校验
+        if (preg_match_all('@(?<!`)\$\$\{([^}]+)\}@u', $content, $ma)) {
+            foreach ($ma[1] as $filter_define) {
+                $err_msg = '';
+                $filter = FilterFactory::getFilter($filter_define, $this->_data, $this->_options, $err_msg);
+
+                if (!$filter) {
+                    throw new \Exception("表单控件错误 {$err_msg}。<span class='text-danger'>" . h($filter_define) . '</span>');
+                }
+
+                $names = $filter->getName();
+                $values = $filter->getValue();
+                if ($filter->error()) {
+                    $this->errors[] = '表单控件错误：' . $filter->error();
+                    #throw new \Exception('表单控件错误：' . $filter->error());
+                }
+                if (!is_array($names)) {
+                    $names = [ $names ];
+                    $values = [$values ];
+                }
+                foreach ($names as $i => $name) {
+                    if (!isset($this->_data[$name]) && $values) {
+                        $this->_data[$name] = $values[$i];
+                    }
+                }
+
+                $replace_value = $filter->getReplaceValue();
+                $regexp = '\$\$\{' . preg_quote($filter_define) . '\}';
+                if ($replace_value === '') {
+                    $regexp .= ';?';
+                }
+
+                $content = preg_replace('@' . $regexp . '@u', $replace_value, $content);
+
+                if ($macro_data = $filter->getMacroData()) {
+                    $this->_macro = array_merge($this->_macro, $macro_data);
+                }
+
+                $this->_forms[] = $filter;
+            }
+        }
+
+        return $this->_forms;
     }
 
     public function run()
@@ -538,7 +591,7 @@ EOT;
     {
         $options = [
             'avg' => FALSE,
-            'sum' => TRUE,
+            'sum' => FALSE,
             //'plugin_sum' => TRUE,
         ];
 
@@ -985,6 +1038,9 @@ EOT;
         // 解析 预定义 php 代码 及 去除注释
         $content = $this->preparse();
 
+        // 移除表单控件
+        $content = preg_replace('@(?<!`)\$\$\{([^}]+)\}@u', '', $content);    
+
         // 解析 查询控件
         # tpl  : ${name|label|default|type(params)}
         # type : date|string|enum(val1,val2,val3)|macro(val1,val2,val3)
@@ -1031,6 +1087,7 @@ EOT;
         }
 
         R('filters', $this->_filters);
+
 
         // 解析 执行 php 代码, 生成内容, 
         // 此时可以再 php 代码中 echo 'SQL' 语句

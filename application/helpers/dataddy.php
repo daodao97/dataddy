@@ -291,6 +291,42 @@ function ddy_view_filter()
     }
 }
 
+function ddy_view_form($forms)
+{
+    echo \MY\PluginManager::getInstance()->getResource();
+
+    if (!empty($forms)) {
+?>
+<div class="panel panel-default" style="position:relative;z-index:200">
+    <div class="panel-body">
+        <form class="form-inline form-search" method="get" action="">
+
+        <?php $form_names = []; ?>
+
+        <?php foreach ($forms as $form) :?>
+        <?php $form->display($form_names); ?>
+        <?php endforeach;?>
+
+        <?php foreach ($_GET as $name => $value) :?>
+        <?php if (!in_array($name, $form_names) && strpos($name, '_') !== 0) :?>
+        <input type="hidden" name="<?=$name?>" value="<?=h($value)?>"/>
+        <?php endif;?>
+        <?php endforeach;?>
+        <input type="submit" class="btn btn-primary" value="保存"/>
+        <input type="reset" class="btn btn-info" value="重置" onclick="resetAndSubmit()"/>
+        <script type="text/javascript">
+            function resetAndSubmit() {
+                location.href = location.href.split('?')[0]
+            }
+        </script>
+
+    </form>
+    </div>
+</div>
+<?php
+    }
+}
+
 function ddy_config($key, $value = NULL) {
     $key = "app:$key";
 
@@ -317,6 +353,26 @@ function ddy_get_form_handler($state)
     if (isset($GLOBALS['ddy_page_form_handler'][$state])) {
 
         return $GLOBALS['ddy_page_form_handler'][$state];
+    }
+
+    return NULL;
+}
+
+function ddy_register_save_form_handler($report_id, $handler = NULL) {
+    if (is_null($handler)) {
+        $handler = $report_id;
+        $report_id = '0';
+    }
+    $GLOBALS['ddy_page_form_save_handler'][get_state_string($report_id)] = $handler;
+
+    return ''; 
+}
+
+function ddy_get_save_form_handler($id)
+{
+    if (isset($GLOBALS['ddy_page_form_save_handler'][$id])) {
+
+        return $GLOBALS['ddy_page_form_save_handler'][$id];
     }
 
     return NULL;
@@ -550,20 +606,40 @@ function ddy_http_post($url, $params, $options=array()) {
     return $response->getBody()->getContents();
 }
 
-function ddy_http_request($method, $url, $options=array()) {
-    $client = new GuzzleHttp\Client([
-        'verify' => false,
-        'cookies' => isset($options['cookies']) ? $options['cookies'] : true
-    ]);
+function ddy_http_request($method, $url, $options = array()) {
+    $clientOptions = [
+        'verify' => false, // 禁用SSL验证，不推荐用于生产环境
+        'cookies' => isset($options['cookies']) ? $options['cookies'] : true,
+        'curl' => [
+            CURLOPT_SSLVERSION => CURL_SSLVERSION_TLSv1_2, // 强制使用TLS 1.2
+            CURLOPT_SSL_VERIFYPEER => false, // 禁用对等证书验证
+            CURLOPT_SSL_VERIFYHOST => false, // 禁用主机名验证
+            CURLOPT_VERBOSE => true, // 启用详细输出
+            CURLOPT_STDERR => fopen('php://temp', 'w+'), // 将详细输出重定向到临时流
+        ],
+    ];
+
+    $client = new GuzzleHttp\Client($clientOptions);
     
-    // 如果提供了 cookie，将其添加到请求选项中
     if (isset($options['cookies']) && is_array($options['cookies'])) {
         $jar = \GuzzleHttp\Cookie\CookieJar::fromArray($options['cookies'], parse_url($url, PHP_URL_HOST));
         $options['cookies'] = $jar;
     }
     
-    $response = $client->request($method, $url, $options);
-    return $response->getBody()->getContents();
+    try {
+        $response = $client->request($method, $url, $options);
+        return $response->getBody()->getContents();
+    } catch (\GuzzleHttp\Exception\RequestException $e) {
+        $curlInfo = $e->getHandlerContext();
+        $verbose = stream_get_contents($clientOptions['curl'][CURLOPT_STDERR]);
+        rewind($clientOptions['curl'][CURLOPT_STDERR]);
+        
+        error_log("HTTP请求错误: " . $e->getMessage());
+        error_log("cURL信息: " . print_r($curlInfo, true));
+        error_log("详细输出: " . $verbose);
+        
+        return "请求失败: " . $e->getMessage() . "\n详细信息已记录到错误日志";
+    }
 }
 
 function ddy_mongo_utc_date($date) {
@@ -586,4 +662,8 @@ function ddy_echo(...$arg) {
 
 function ddy_is_cli() {
     return php_sapi_name() == 'cli';
+}
+
+function ddy_exception($message) {
+    throw new Exception($message);
 }

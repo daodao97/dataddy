@@ -210,7 +210,7 @@ class Base
     public function mod($sql, $mode = '')
     {
         try {
-            $db  = &$this->getDbWrite();
+            $db  = $this->getDbWrite();
 
             $this->_log("Execute Sql: $sql", LOG_DEBUG);
 
