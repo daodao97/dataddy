@@ -235,7 +235,8 @@ class ReportController extends MY\Controller_Abstract
     public function indexAction()
     {
         param_request([
-            'id' => 'UINT'
+            'id' => 'UINT',
+            'format' => 'STRING',
         ]);
 
         $id = @$GLOBALS['req_id'];
@@ -380,7 +381,7 @@ class ReportController extends MY\Controller_Abstract
         }
         $this->data['template_data'] = template_cb($template_data);
 
-        $format = $_GET['format'];
+        $format = $GLOBALS['req_format'] ?? null;
         if ($format == 'json') {
             $rowData = $result['data'];
             //可能有多个报表
