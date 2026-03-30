@@ -87,7 +87,7 @@ class MenuController extends MY\Controller_Abstract {
             'id' => 'UINT',
         ]);
 
-        $id = $GLOBALS['post_id'];
+        $id = $GLOBALS['post_id'] ?? 0;
 
         if (empty($id)) {
             return response_error(CODE_ERR_PARAM);
@@ -116,12 +116,12 @@ class MenuController extends MY\Controller_Abstract {
             'version' => 'UINT',
         ]);
 
-        $tree_data = json_decode($GLOBALS['post_tree'], true);
+        $tree_data = json_decode($GLOBALS['post_tree'] ?? '', true);
 
-        $id = $GLOBALS['post_id'];
-        $parent_id = $GLOBALS['post_parent'];
-        $position = $GLOBALS['post_position'];
-        $version = d(@$GLOBALS['post_version'], 0);
+        $id = $GLOBALS['post_id'] ?? 0;
+        $parent_id = $GLOBALS['post_parent'] ?? 0;
+        $position = $GLOBALS['post_position'] ?? '';
+        $version = d($GLOBALS['post_version'] ?? null, 0);
 
         if (empty($id)) {
             return response_error(CODE_ERR_PARAM);

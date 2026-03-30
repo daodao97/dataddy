@@ -240,8 +240,34 @@ function _param_handle($source, $def, $prefix=null, &$scope=null, $default=array
 
   $errors = array();  // keep track of PARAM_ERROR failures
 
-  if (!is_array($scope)) {
-    $scope = $GLOBALS;
+  $writeToGlobals = !is_array($scope);
+
+  $setScopeValue = function($key, $value) use (&$scope, $writeToGlobals) {
+    if ($writeToGlobals) {
+      $GLOBALS[$key] = $value;
+      return;
+    }
+
+    $scope[$key] = $value;
+  };
+
+  $setScopeArrayValue = function($key, $arrayKey, $value) use (&$scope, $writeToGlobals) {
+    if ($writeToGlobals) {
+      if (!isset($GLOBALS[$key]) || !is_array($GLOBALS[$key])) {
+        $GLOBALS[$key] = array();
+      }
+      $GLOBALS[$key][$arrayKey] = $value;
+      return;
+    }
+
+    if (!isset($scope[$key]) || !is_array($scope[$key])) {
+      $scope[$key] = array();
+    }
+    $scope[$key][$arrayKey] = $value;
+  };
+
+  if ($writeToGlobals) {
+    $scope = array();
   }
 
   if (!is_array($def)) {
@@ -278,7 +304,7 @@ function _param_handle($source, $def, $prefix=null, &$scope=null, $default=array
 
       // raw param
       if ($flags & $PARAM_RAW) {
-        $scope[$prefix.$var] = $ref;
+        $setScopeValue($prefix.$var, $ref);
         continue;
       }
 
@@ -301,7 +327,7 @@ function _param_handle($source, $def, $prefix=null, &$scope=null, $default=array
 
 
             //if (isset($ret['a_a'])) {
-              $scope[$prefix.$var][$key] = isset($ret['a_a']) ? $ret['a_a'] : NULL;
+              $setScopeArrayValue($prefix.$var, $key, isset($ret['a_a']) ? $ret['a_a'] : NULL);
             //}
           }
           continue;
@@ -310,7 +336,7 @@ function _param_handle($source, $def, $prefix=null, &$scope=null, $default=array
 
       if ($flags & $_PARAM_NULLOK) {
         if ($ref == '') {
-          $scope[$prefix.$var] = null;
+          $setScopeValue($prefix.$var, null);
           continue;
         }
       }
@@ -331,26 +357,26 @@ function _param_handle($source, $def, $prefix=null, &$scope=null, $default=array
             }
 
             if ( ! in_array($ref, $enums)) {
-                $scope[$prefix.$var] = NULL;
+                $setScopeValue($prefix.$var, NULL);
             } else {
-                $scope[$prefix.$var] = $ref;
+                $setScopeValue($prefix.$var, $ref);
             }
         }
 
         if ($flags & $PARAM_REGEXP) {
             $regexp = @$GLOBALS['PARAM_REGEXP_VALUE'];
             if ($regexp && preg_match($regexp, $ref)) {
-                $scope[$prefix.$var] = $ref;
+                $setScopeValue($prefix.$var, $ref);
             } else {
                 _param_error("PARAM: invalid content for $var, expected match $regexp. [$ref]", $var, $flags, $ref, $errors);
-                $scope[$prefix.$var] = NULL;
+                $setScopeValue($prefix.$var, NULL);
             }
         }
 
         if ($flags & $PARAM_UINT) { // unsigned (non-negative integer)
           if (ctype_digit($ref) || is_int($ref)) {
 
-            $scope[$prefix.$var] = (int)$ref;
+            $setScopeValue($prefix.$var, (int)$ref);
           } else {
             if (strpos(@$_SERVER['HTTP_USER_AGENT'], 'MSIE 7.0') !== false && preg_match('/[0-9]+[0-9a-f]{8}$/', $ref) == 1) {
               _param_fail(); // don't spew on detectible ie7b2 junk, a char hex is appended to int get var
@@ -360,10 +386,10 @@ function _param_handle($source, $def, $prefix=null, &$scope=null, $default=array
           }
       } elseif ($flags & $PARAM_SINT) { // signed (negative ok integer)
         if (ctype_digit($ref) || is_int($ref)) {
-          $scope[$prefix.$var] = (int)$ref;
+          $setScopeValue($prefix.$var, (int)$ref);
         } else {
           if ($ref[0] == '-' && ctype_digit(substr($ref, 1))) {  // allow negative numbers for int
-            $scope[$prefix.$var] = (int)$ref;
+            $setScopeValue($prefix.$var, (int)$ref);
           } else {
              if (strpos(@$_SERVER['HTTP_USER_AGENT'], 'MSIE 7.0') !== false && preg_match('/[0-9]+[0-9a-f]{8}$/', $ref) == 1) {
               _param_fail();  // don't spew on detectible ie7b2 junk, a char hex is appended to int get var
@@ -374,7 +400,7 @@ function _param_handle($source, $def, $prefix=null, &$scope=null, $default=array
         }
       } elseif ($flags & $PARAM_FLOAT) {
         if (preg_match('/^[0-9\.]*$/i', $ref)) {
-          $scope[$prefix.$var] = (float)$ref;
+          $setScopeValue($prefix.$var, (float)$ref);
         } else {
           _param_error("PARAM: invalid content for $var, expected FLOAT. [$ref]", $var, $flags, $ref, $errors);
         }
@@ -382,31 +408,31 @@ function _param_handle($source, $def, $prefix=null, &$scope=null, $default=array
         switch (strtolower($ref)) {
           case '0':
           case '1':
-            $scope[$prefix.$var] = (bool)$ref;
+            $setScopeValue($prefix.$var, (bool)$ref);
             break;
           case 'true':
           case 'on':
           case 'yes':
-            $scope[$prefix.$var] = true;
+            $setScopeValue($prefix.$var, true);
             break;
           case 'false':
           case 'off':
           case 'no':
-            $scope[$prefix.$var] = false;
+            $setScopeValue($prefix.$var, false);
             break;
           default:
             _param_error("PARAM: invalid content for $var, expected BOOL. [$ref]", $var, $flags, $ref, $errors);
             break;
         }
       } elseif ($flags & $PARAM_EXISTS) { // already passed isset above
-        $scope[$prefix.$var] = true;
+        $setScopeValue($prefix.$var, true);
       } elseif ($flags & $PARAM_HEX) {
         if (ctype_xdigit($ref)) {
           // NOTE: (int) cast because hexdec can return a float if the hex
           // string is above INT_MAX. In those cases this will return 0, so
           // that is_int($result) will always be true if $result came from
           // $PARAM_HEX
-          $scope[$prefix.$var] = (int)hexdec($ref);
+          $setScopeValue($prefix.$var, (int)hexdec($ref));
         } else {
           _param_error("PARAM: invalid content for $var, expected HEX. [$ref]", $var, $flags, $ref, $errors);
         }
@@ -450,19 +476,19 @@ function _param_handle($source, $def, $prefix=null, &$scope=null, $default=array
         // strip out any \r characters. all we need is \n
         $ref = str_replace("\r","",$ref);
 
-        $scope[$prefix.$var] = (string)$ref;
+        $setScopeValue($prefix.$var, (string)$ref);
       } elseif ($flags == 0) {
         error_log("PARAM: var ($var) has invalid type, undefined (0)");
         return false;
       }
     } else { // exists in source
       if ($flags & $PARAM_EXISTS) {
-        $scope[$prefix.$var] = false;
+        $setScopeValue($prefix.$var, false);
       } else {
         if ($flags & $PARAM_REQUIRED) {
             _param_error("PARAM: required content for $var.", $var, $flags, NULL, $errors);
         }
-        $scope[$prefix.$var] = null;
+        $setScopeValue($prefix.$var, null);
       }
     }
   } // each def
