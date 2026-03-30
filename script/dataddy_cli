@@ -7,8 +7,8 @@ $config = new \Yaf\Config\Ini(APPLICATION_PATH . '/conf/application.ini');
 $app = new \Yaf\Application($config->toArray()['yaf']);
 $app->Bootstrap();
 
-$action = $argv[1];
-$id = $argv[2];
+$action = $argv[1] ?? 'index';
+$id = $argv[2] ?? 0;
 $params_str = $argv[3] ?? '';
 
 $_GET['id'] = $id;

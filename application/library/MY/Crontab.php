@@ -43,13 +43,15 @@ class Crontab
             $cli_command = "$php $cli_command";
         }
 
-        foreach ($rows as $row) {
-            $action = 'index';
-            if (preg_match('@(\w+)$@', $row['crontab'], $ma)) {
-                $action = $ma[1];
+        if (is_array($rows)) {
+            foreach ($rows as $row) {
+                $action = 'index';
+                if (preg_match('@(\w+)$@', $row['crontab'], $ma)) {
+                    $action = $ma[1];
+                }
+                $crontab = preg_replace('@(.+?)(\w+)?$@', '$1' . " $cli_command $action {$row['id']}", $row['crontab']);
+                $crontab_lines[] = $crontab . " >> $output 2>&1";
             }
-            $crontab = preg_replace('@(.+?)(\w+)?$@', '$1' . " $cli_command $action {$row['id']}", $row['crontab']);
-            $crontab_lines[] = $crontab . " >> $output 2>&1";
         }
 
         $crontab_content = implode("\n", $crontab_lines);

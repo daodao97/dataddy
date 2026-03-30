@@ -73,6 +73,9 @@ function aes_decrypt($cryptext, $password)
 
 function my_json_decode($json, $default = [])
 {
+    if ($json === null || $json === '') {
+        return $default;
+    }
 
     $json = preg_replace('@//[^"]+?$@mui', '', $json);
     $json = preg_replace('@^\s*//.*?$@mui', '', $json);
@@ -94,8 +97,10 @@ function response($data, $code = CODE_SUCC, $message = '')
         'data' => $data,
     ];
 
-    header("Cache-Control: no-cache");
-    header("Pragma: no-cache");
+    if (!headers_sent()) {
+        header("Cache-Control: no-cache");
+        header("Pragma: no-cache");
+    }
     //header('Content-Type: application/json; charset=UTF-8');
 
     echo json_encode($ret);

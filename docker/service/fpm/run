@@ -1,20 +1,32 @@
 #!/bin/sh
 
-echo "----composer install----"
+set -e
+
 cd /yaf
 sudo mkdir -p /yaf/vendor
 sudo chown -R www:www /yaf/vendor
-sudo -u www /usr/bin/composer install
+
+if [ ! -f /yaf/vendor/autoload.php ]; then
+    echo "----composer install----"
+    sudo -u www composer install --no-interaction
+else
+    echo "----composer install skipped, reuse existing vendor----"
+fi
+
 cd -
 
 sleep 5
 echo "----build crontab----"
-sudo -u www /usr/bin/php /yaf/script/dataddy_cli buildCron
-sudo -u www /usr/bin/php /yaf/script/dataddy_cli buildCron
+if ! sudo -u www php /yaf/script/dataddy_cli buildCron; then
+    echo "----build crontab failed, continue startup----"
+fi
+if ! sudo -u www php /yaf/script/dataddy_cli buildCron; then
+    echo "----build crontab failed, continue startup----"
+fi
 # /usr/bin/php /yaf/script/dataddy_cli buildCron
 
 echo "\n"
 
 
 echo "----start fpm----"
-exec /usr/bin/php-fpm -F
+exec php-fpm -F

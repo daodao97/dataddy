@@ -9,6 +9,7 @@ class Sql
     const LOGIC = '__logic';
 
     private $rawStrPrefixLength;
+    private $rawStrNoEscapePrefixLength;
 
     private function __construct()
     {

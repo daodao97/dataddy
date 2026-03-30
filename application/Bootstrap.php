@@ -31,7 +31,7 @@ class Bootstrap extends Yaf\Bootstrap_Abstract {
             $ticket = null;
             if (isset($_GET['ticket'])) {
                 $ticket = $_GET['ticket'];
-            } elseif (preg_match('@ticket=(\w+)@i', @$_SERVER['HTTP_REFERER'], $ma)) {
+            } elseif (!empty($_SERVER['HTTP_REFERER']) && preg_match('@ticket=(\w+)@i', $_SERVER['HTTP_REFERER'], $ma)) {
                 $ticket = $ma[1];
             }
             if ($ticket) {

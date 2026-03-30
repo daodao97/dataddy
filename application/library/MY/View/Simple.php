@@ -16,7 +16,7 @@ class View_Simple extends \Yaf\View\Simple {
 
     const INHERIT_DEPTH_DEFAULT = -1;
 
-    public function render($tpl, $tpl_vars = NULL)
+    public function render(string $tpl, ?array $tpl_vars = NULL): string|false|null
     {
         return $this->_render($tpl, $tpl_vars);
     }
@@ -38,7 +38,7 @@ class View_Simple extends \Yaf\View\Simple {
         return $default;
     }
 
-    protected function _render($tpl, $tpl_vars = array())
+    protected function _render(string $tpl, ?array $tpl_vars = array()): string|false|null
     {
         $view_path = $this->getScriptPath();
         $view_ext = \Yaf\Application::app()->getConfig()->get('application.view.ext');

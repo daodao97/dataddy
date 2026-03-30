@@ -100,6 +100,11 @@ class Base
                 $db = &$this->getDbRead();
             }
 
+            if (!$db) {
+                $this->_log('DB query skipped: connection not available', LOG_ERR);
+                return FALSE;
+            }
+
             $this->_log("Execute Sql: $sql", LOG_DEBUG);
 
             $startTime = microtime(TRUE);
@@ -141,6 +146,11 @@ class Base
                 $db = $this->getDbWrite();
             } else {
                 $db = $this->getDbRead();
+            }
+
+            if (!$db) {
+                $this->_log('DB select skipped: connection not available', LOG_ERR);
+                return FALSE;
             }
 
             $this->_log("Execute Sql: $sql", LOG_DEBUG);
@@ -211,6 +221,11 @@ class Base
     {
         try {
             $db  = $this->getDbWrite();
+
+            if (!$db) {
+                $this->_log('DB mod skipped: connection not available', LOG_ERR);
+                return FALSE;
+            }
 
             $this->_log("Execute Sql: $sql", LOG_DEBUG);
 

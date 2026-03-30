@@ -6,8 +6,9 @@ class DataddyPlugin extends \Yaf\Plugin_Abstract
     public function dispatchLoopStartup(\Yaf\Request_Abstract $request, \Yaf\Response_Abstract $response)
     {
         // fix url-encoded url
-        if (preg_match('@^/%23@', $_SERVER['REQUEST_URI'])) {
-            $correct_url = preg_replace('@^/%23@', '/#', $_SERVER['REQUEST_URI']);
+        $requestUri = $_SERVER['REQUEST_URI'] ?? '';
+        if ($requestUri && preg_match('@^/%23@', $requestUri)) {
+            $correct_url = preg_replace('@^/%23@', '/#', $requestUri);
             redirect($correct_url);
         }
 

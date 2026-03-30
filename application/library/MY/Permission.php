@@ -33,9 +33,9 @@ class Permission
             array_change_key($roles, 'id');
             foreach ($roles as &$role) {
                 $role['config']= my_json_decode(@$role['config']);
-                $role['resource'] = my_json_decode($role['resource']);
-                unset($role);
+                $role['resource'] = my_json_decode($role['resource'] ?? []);
             }
+            unset($role);
             $this->_roles = $roles;
         }
 

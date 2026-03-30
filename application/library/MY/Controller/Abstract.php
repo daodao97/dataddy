@@ -109,7 +109,7 @@ class Controller_Abstract extends \Yaf\Controller_Abstract {
         return FALSE;
     }
 
-    public function render($tpl, array $tpl_vars = NULL)
+    public function render(string $tpl, ?array $tpl_vars = NULL): string|bool|null
     {
         if (is_null($tpl_vars)) {
             $tpl_vars = array();
