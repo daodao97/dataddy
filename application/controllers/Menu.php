@@ -233,7 +233,7 @@ class MenuController extends MY\Controller_Abstract {
             'id' => 'UINT'
         ]);
 
-        $id = $GLOBALS['req_id'];
+        $id = $GLOBALS['req_id'] ?? 0;
 
         $rules = [
             'name|名称' => 'strip_tags|trim|required|unique_row[menuItem.name]',
@@ -269,7 +269,7 @@ class MenuController extends MY\Controller_Abstract {
             return response_error(CODE_ERR_PARAM, $this->form_validation->errors());
         }
 
-        $release = $result['release'];
+        $release = $result['release'] ?? FALSE;
         unset($result['release']);
 
         if (!$id) {
