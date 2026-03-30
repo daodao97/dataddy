@@ -282,7 +282,7 @@ margin-top: 0px;
                                         }
 
                                         $tooltip = '';
-                                        if ($col_index === 0 && $rdata['fliped']) {
+                                        if ($col_index === 0 && !empty($rdata['fliped'])) {
                                             $tooltip = $rdata['options']['fields'][$val]['tooltip'] ?? '';
                                             $attr_list[] = "title='$tooltip'";
                                             $attr_list[] = "class='tooltips'";
