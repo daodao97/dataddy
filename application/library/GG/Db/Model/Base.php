@@ -38,13 +38,14 @@ class Base
 
     public static function getInstance()
     {
-        static $instance = NULL;
+        static $instances = array();
+        $class = static::class;
 
-        if (is_null($instance)) {
-            $instance = new static();
+        if (!isset($instances[$class])) {
+            $instances[$class] = new static();
         }
 
-        return $instance;
+        return $instances[$class];
     }
 
     //设置所有的Model都强制读写主库

@@ -57,7 +57,13 @@ class LoginController extends MY\Controller_Abstract
             return response_error(CODE_ERR_PARAM, $this->form_validation->errors());
         }
 
+        $loginPayloadLog = 'login auth payload username=' . json_encode($result['username'] ?? null, JSON_UNESCAPED_UNICODE);
+        log_message($loginPayloadLog, LOG_INFO);
+        error_log($loginPayloadLog);
         $user = M('user')->selectOne(['username' => $result['username']]);
+        $loginQueryLog = 'login auth query result=' . json_encode($user ? ['id' => $user['id'] ?? null, 'username' => $user['username'] ?? null] : null, JSON_UNESCAPED_UNICODE);
+        log_message($loginQueryLog, LOG_INFO);
+        error_log($loginQueryLog);
         if (!$user) {
             return response_error(CODE_ERR_AUTH, '用户名不存在');
         }
