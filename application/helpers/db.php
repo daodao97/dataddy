@@ -18,7 +18,7 @@ function escapeInputValue($value)
  */
 function escapeRawInputValue($value)
 {
-    if (get_magic_quotes_gpc()) {
+    if (function_exists('get_magic_quotes_gpc') && get_magic_quotes_gpc()) {
         $value = stripslashes($value);
     }
     return mysql_escape_string($value);

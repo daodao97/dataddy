@@ -443,7 +443,7 @@ function _param_handle($source, $def, $prefix=null, &$scope=null, $default=array
           }
         }
 
-        if (@get_magic_quotes_gpc())
+        if (function_exists('get_magic_quotes_gpc') && @get_magic_quotes_gpc())
             $ref = stripslashes($ref);
 
         if ($flags & $PARAM_STRIPTAGS) {

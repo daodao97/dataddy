@@ -68,42 +68,59 @@ MetronicApp.controller('MenuFormController', [
 
         var pending;
         var current_mode = 'application/x-dataddy';
+        var syntaxCheckXhr = null;
+        var syntaxCheckSeq = 0;
+
+        function clearSyntaxWidgets() {
+            $scope.line_widget.forEach(function (line) {
+                line.clear();
+            });
+            $scope.error_line = [];
+            $scope.line_widget = [];
+        }
+
+        function renderSyntaxErrors(editors, res) {
+            clearSyntaxWidgets();
+            if (res.code !== 0 && res.data) {
+                $log.error("PHP代码语法错误：" + res.data.error);
+                var line = (res.data.line || 1) - 1;
+                var div = document.createElement("div");
+                div.setAttribute('class', 'code-error-widget');
+                div.appendChild(document.createTextNode(res.data.error));
+                if ($scope.line_widget[line] === undefined) {
+                    $scope.line_widget[line] = editors.addLineWidget(line, div, true);
+                }
+            }
+        }
 
         editor.on('change', debounce(function(editors){
 
             if($scope.menu !== undefined) {
                 var id = $scope.menu.id;
                 var val = editors.getValue();
+                var requestSeq = ++syntaxCheckSeq;
 
-                $.ajax({
+                if (syntaxCheckXhr && syntaxCheckXhr.readyState !== 4) {
+                    syntaxCheckXhr.abort();
+                }
+
+                syntaxCheckXhr = $.ajax({
                     url: '/report/syntaxCheck',
                     data: {id:id, code: val},
                     contentType: 'application/x-www-form-urlencoded;charset=utf-8',
                     type: "POST",
                     dataType: 'json',
-                    async: false,
+                    timeout: 10000,
                     success: function (res) {
-                        $scope.line_widget.forEach(function (line) {
-                            line.clear();
-                        });
-                        $scope.error_line = [];
-                        $scope.line_widget = [];
-                        if(res.code !== 0) {
-                            // Notification.error("PHP代码语法错误：" + res.data.error);
-                            $log.error("PHP代码语法错误：" + res.data.error);
-                            // $scope.error_line.push(res.data.line - 1);
-                            // editors.addLineClass(res.data.line - 1, 'gutter', 'error-circle')
-                            var div = document.createElement("div");
-                            div.setAttribute('class', 'code-error-widget');
-                            var node = document.createTextNode(res.data.error);
-                            div.appendChild(node);
-                            if($scope.line_widget[res.data.line-1] === undefined) {
-                                var w = editors.addLineWidget(res.data.line-1, div, true)
-                                $scope.line_widget[res.data.line-1] = w;;
-                            }
+                        if (requestSeq !== syntaxCheckSeq) {
+                            return;
                         }
+                        renderSyntaxErrors(editors, res);
                     },
                     error: function (e) {
+                        if (e && e.statusText === 'abort') {
+                            return;
+                        }
                     }
                 });
             }
