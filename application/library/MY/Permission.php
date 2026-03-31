@@ -27,6 +27,22 @@ class Permission
         $start = microtime(TRUE);
         $this->_is_admin = $is_admin;
 
+        if ($this->_is_admin) {
+            $this->_permissions = [
+                [
+                    '__all' => [ '__mode' => 'Rrw' ],
+                ],
+            ];
+            $this->logProfile('permission.construct_total', $start, [
+                'roles' => 0,
+                'sub_roles' => 0,
+                'maps' => count($this->_permissions),
+                'is_admin' => 1,
+                'fast_path' => 1,
+            ]);
+            return;
+        }
+
         if ($roles) {
             $role_load_start = microtime(TRUE);
             if (is_string($roles)) {

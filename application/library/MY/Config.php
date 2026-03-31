@@ -5,13 +5,47 @@ use ConfigModel;
 
 class Config extends \GG\Config
 {
+    const DEFAULT_CONFIG_CACHE_KEY = 'config:system:default';
+    const DEFAULT_CONFIG_CACHE_TTL = 60;
+
     public static function init()
     {
         self::add(\Yaf\Application::app()->getConfig()->toArray());
 
-        if ($config = ConfigModel::get(ConfigModel::DEFAULT_CONFIG)) {
+        $config = self::getDefaultConfigCache();
+        if ($config === FALSE) {
+            $config = ConfigModel::get(ConfigModel::DEFAULT_CONFIG);
+            if ($config) {
+                self::setDefaultConfigCache($config);
+            }
+        }
+
+        if ($config) {
             self::add($config);
         }
+    }
+
+    protected static function getDefaultConfigCache()
+    {
+        $cache = new \GG\Cache\FileCache(APPLICATION_PATH . '/application/cache/config');
+        $content = $cache->get(self::DEFAULT_CONFIG_CACHE_KEY);
+        if ($content === FALSE) {
+            return FALSE;
+        }
+
+        $config = @unserialize($content);
+
+        return is_array($config) ? $config : FALSE;
+    }
+
+    protected static function setDefaultConfigCache(array $config)
+    {
+        $cache = new \GG\Cache\FileCache(APPLICATION_PATH . '/application/cache/config');
+        $cache->set(
+            self::DEFAULT_CONFIG_CACHE_KEY,
+            serialize($config),
+            self::DEFAULT_CONFIG_CACHE_TTL
+        );
     }
 
     public static function getEnabledPlugins()
@@ -73,6 +107,13 @@ class Config extends \GG\Config
 
     public static function setPermanently($key, $value)
     {
-        ConfigModel::setDefault($key, $value);
+        $ok = ConfigModel::setDefault($key, $value);
+        if ($ok) {
+            $config = ConfigModel::get(ConfigModel::DEFAULT_CONFIG);
+            if ($config) {
+                self::setDefaultConfigCache($config);
+            }
+        }
+        return $ok;
     }
 }
