@@ -7,43 +7,51 @@ class Config extends \GG\Config
 {
     const DEFAULT_CONFIG_CACHE_KEY = 'config:system:default';
     const DEFAULT_CONFIG_CACHE_TTL = 60;
+    const DEFAULT_CONFIG_CACHE_DIR = APPLICATION_PATH . '/application/cache/config';
 
     public static function init()
     {
         self::add(\Yaf\Application::app()->getConfig()->toArray());
 
         $config = self::getDefaultConfigCache();
-        if ($config === FALSE) {
+        if ($config !== FALSE) {
+            log_message('config.default_cache hit=1', LOG_NOTICE);
+        } else {
+            log_message('config.default_cache hit=0', LOG_NOTICE);
             $config = ConfigModel::get(ConfigModel::DEFAULT_CONFIG);
-            if ($config) {
-                self::setDefaultConfigCache($config);
-            }
+            self::setDefaultConfigCache(is_array($config) ? $config : []);
         }
 
-        if ($config) {
+        if (is_array($config)) {
             self::add($config);
         }
     }
 
     protected static function getDefaultConfigCache()
     {
-        $cache = new \GG\Cache\FileCache(APPLICATION_PATH . '/application/cache/config');
+        $cache = new \GG\Cache\FileCache(self::DEFAULT_CONFIG_CACHE_DIR);
         $content = $cache->get(self::DEFAULT_CONFIG_CACHE_KEY);
         if ($content === FALSE) {
             return FALSE;
         }
 
-        $config = @unserialize($content);
+        $payload = @unserialize($content);
 
-        return is_array($config) ? $config : FALSE;
+        if (!is_array($payload) || !array_key_exists('data', $payload)) {
+            return FALSE;
+        }
+
+        return is_array($payload['data']) ? $payload['data'] : [];
     }
 
     protected static function setDefaultConfigCache(array $config)
     {
-        $cache = new \GG\Cache\FileCache(APPLICATION_PATH . '/application/cache/config');
+        $cache = new \GG\Cache\FileCache(self::DEFAULT_CONFIG_CACHE_DIR);
         $cache->set(
             self::DEFAULT_CONFIG_CACHE_KEY,
-            serialize($config),
+            serialize([
+                'data' => $config,
+            ]),
             self::DEFAULT_CONFIG_CACHE_TTL
         );
     }

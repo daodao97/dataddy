@@ -8,6 +8,9 @@ require dirname(__FILE__) . '/helpers/http.php';
 require dirname(__FILE__) . '/helpers/dataddy.php';
 
 class Bootstrap extends Yaf\Bootstrap_Abstract {
+    const BOOTSTRAP_CACHE_DIR = APPLICATION_PATH . '/application/cache/bootstrap';
+    const USER_CACHE_TTL = 60;
+
     public function _initLocal($dispatcher)
     {
         $bootstrap_start = microtime(TRUE);
@@ -52,14 +55,27 @@ class Bootstrap extends Yaf\Bootstrap_Abstract {
 
 
         $stage_start = microtime(TRUE);
-        if ($uid && ($user = M('user')->find($uid))) {
-            unset($user['password']);
-            if (!empty($user['config'])) {
-                $user['config'] = my_json_decode($user['config']);
+        if ($uid) {
+            $user = $this->getCachedUser($uid);
+            if ($user === FALSE) {
+                $user = M('user')->find($uid);
+                if ($user) {
+                    $this->setCachedUser($uid, $user);
+                }
             }
-            R('user', $user);
-            $roles = $user['roles'];
-            $is_admin = $user['is_admin'];
+
+            if ($user) {
+                unset($user['password']);
+                if (!empty($user['config']) && !is_array($user['config'])) {
+                    $user['config'] = my_json_decode($user['config']);
+                }
+            }
+
+            if ($user) {
+                R('user', $user);
+                $roles = $user['roles'];
+                $is_admin = $user['is_admin'];
+            }
         }
         $this->logProfile('bootstrap.load_user', $stage_start, [
             'uid' => (int)$uid,
@@ -105,6 +121,28 @@ class Bootstrap extends Yaf\Bootstrap_Abstract {
             $parts[] = "{$key}={$value}";
         }
         log_message(implode(' ', $parts), LOG_NOTICE);
+    }
+
+    private function getCachedUser($uid)
+    {
+        $cache = new \GG\Cache\FileCache(self::BOOTSTRAP_CACHE_DIR);
+        $content = $cache->get("user:{$uid}");
+        if ($content === FALSE) {
+            log_message("bootstrap.user_cache hit=0 uid={$uid}", LOG_NOTICE);
+            return FALSE;
+        }
+
+        $user = @unserialize($content);
+        $hit = is_array($user) ? 1 : 0;
+        log_message("bootstrap.user_cache hit={$hit} uid={$uid}", LOG_NOTICE);
+
+        return is_array($user) ? $user : FALSE;
+    }
+
+    private function setCachedUser($uid, array $user)
+    {
+        $cache = new \GG\Cache\FileCache(self::BOOTSTRAP_CACHE_DIR);
+        $cache->set("user:{$uid}", serialize($user), self::USER_CACHE_TTL);
     }
 }
 /* End of file <`2:filename`>.php */
