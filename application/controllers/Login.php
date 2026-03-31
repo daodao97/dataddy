@@ -141,6 +141,8 @@ class LoginController extends MY\Controller_Abstract
             'last_login_time' => '&/CURRENT_TIMESTAMP',
         ));
 
+        Bootstrap::clearCachedUser($userInfo['id']);
+
         $session = \GG\Session::getInstance();
         $expire = \GG\Config::get("cookie.expire", 86400);
         $session->setUserID($userInfo['id'], false, $expire, '');
@@ -151,7 +153,9 @@ class LoginController extends MY\Controller_Abstract
         $redirect_uri = get_current_protocol() . "://" . $_SERVER['HTTP_HOST'] . '/';
 
         $session = \GG\Session::getInstance();
+        $uid = $session->getUserID();
         $session->clearUserID();
+        Bootstrap::clearCachedUser($uid);
 
         if ($this->sso) {
             $logout_url = $this->sso->getLogoutUrl($redirect_uri);

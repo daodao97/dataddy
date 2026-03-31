@@ -103,30 +103,70 @@
                     <p>
                         <pre>
 {
-    "table" : {  //默认表格配置
-        "avg" : true, //显示平均行，默认false
-        "sum" : true, //显示合计行，默认true
-        "limit" : 1000, //默认1000行
-        "datatable" : {  // datatable的自定义选项
+    "icon": "icon-bar-chart", // 菜单图标
+    "auto_refresh": 30, // 自动刷新秒数
+    "prepend_content": "&lt;div class=\"alert alert-info\"&gt;顶部提示&lt;/div&gt;", // 页面顶部插入 HTML
+    "remark": "这里只展示最近 30 天数据", // 页面顶部说明
+    "table" : {  // 默认表格配置
+        "avg" : false, // 是否显示平均行，默认 false
+        "sum" : false, // 是否显示合计行，默认 false
+        "limit" : 1000, // SQL 自动补 LIMIT，默认 1000
+        "dt" : {  // DataTables 自定义选项，设为 false 则关闭 datatable
+            "paging": true,
+            "order": [[0, "desc"]]
+        },
+        "fields": {
+            "consume_amount": {
+                "header": "消耗金额",
+                "tooltip": "单位：元",
+                "count": true
+            },
+            "roi": {
+                "header": "ROI",
+                "def": "{收入}/{消耗金额}"
+            }
         }
     },
-    "tables" : {  //页面有多个表格时，可以单独配置每个表格
-        "tableid" : {} //同table配置
-    },
-    "chart" : {  //默认图表配置
-        "line" : {  //line图配置
+    "tables" : {  // 页面有多个报表块时，可以单独配置每个表格
+        "报表ID" : {
+            "sum": false,
+            "chart": "__auto__",
+            "join": { "on": ["uid"] },
+            "edit": {
+                "pk": "id",
+                "columns": {
+                    "状态": { "type": "select", "name": "status" }
+                }
+            }
         }
     },
-    "mail" : {   //邮件发送报表设置
-		"receiver" : "wuxiaojing@shhuzhong.com,wujuetong@shhuzhong.com",   //可指定具体邮箱，也可使用系统的用户名
-		"subject" : "{name} - {date}", //邮件名称 {time}宏表示数据时间，{name}表示当前页面名称
-        "enable" : false  //是否开启，默认为true。
-	}
-    "charts" : {},  //同tables意义
-    "mail_title" : "{time} {name}", //报警邮件设置，邮件名称 {time}宏表示数据时间，{name}表示当前页面名称
-    "mail_receiver" : "somebody@example.com,username", //报警邮件设置，可指定具体邮箱，也可使用系统的用户名
+    "chart" : "__auto__",  // 默认图表配置，也可写 "line:a,b" / "pie:a,b" / 对象配置
+    "charts" : {  // 单独配置某个报表块的图表
+        "渠道分布": "pie:channel,total_amount"
+    },
+    "mail" : {   // 邮件发送配置
+        "receiver" : "somebody@example.com,username", // 可指定邮箱，也可使用系统用户名
+        "subject" : "{name}", // 当前实现支持 {name}，也支持 {date|2026-03-31}
+        "enable" : true  // 设为 false 则禁止发送
+    },
+    "alarm": {   // 报警通知配置，执行 /report/alarm 时生效
+        "type": "lark,mail"
+    },
+    "sql_cache": 60, // SQL 缓存秒数
+    "disable_cache": false, // 是否禁用缓存
+    "notice": "显示在报表顶部的提示",
+    "merge_cell": "渠道,账户",
+    "avg_pk": "uid",
+    "no_delay_sum": true
 }
                         </pre>
+                        <div>
+                            <strong>补充说明：</strong><br/>
+                            1. <code>table</code> / <code>tables</code> 是表格配置，<code>chart</code> / <code>charts</code> 是图表配置。<br/>
+                            2. <code>alarm.type</code> 对应系统里的 <code>notify.xxx</code> 配置，报表块需产出 <code>message</code> 才会触发通知。<br/>
+                            3. <code>join</code> / <code>union</code> 用于把多段 SQL 拼成一个报表块。<br/>
+                            4. <code>edit</code> 用于可编辑报表，需配合 <code>ddy_register_form_handler()</code>。<br/>
+                        </div>
                     </p>
                 </div>
                 <ui-codemirror ui-codemirror-opts="settingEditorOptions" ng-model="menu.settings" ui-refresh="refresh"></ui-codemirror>
@@ -149,15 +189,189 @@
                     <h4 class="block">语法说明</h4>
                     <p>
                         <label>筛选控件定义:</label><var>${name|label|default|type}</var>
-                        <strong>name:</strong> 控件名称，需要是字母，数字组成<br/>
+                        <strong>name:</strong> 控件名称，需要是字母、数字、下划线组成<br/>
                         <strong>label:</strong> 控件的标签<br/>
                         <strong>default:</strong> 默认值，常量或<a href="http://php.net/manual/zh/datetime.formats.relative.php" target="_blank">时间表达式</a>，例：<code>today,yesterday,first day of this month</code><br/>
                         <strong>type:</strong><br/>
                         <ul>
-                            <li> <var>date</var> : 日期，默认类型</li>
-                            <li> <var>string</var> : 字符串 </li>
-                            <li> <var>enum</var> : 枚举（下拉框）;格式 <code>enum[text1:val1,text2:val2,...] / enum[cb_func]</code>，其中<var>func</var>为预定的函数，返回<var>text:val</var>元素的数组</li>
+                            <li><var>date</var> / <var>date.month</var>：日期 / 月份</li>
+                            <li><var>time</var> / <var>time.hour</var>：时间 / 小时</li>
+                            <li><var>date_range</var> / <var>time_range</var>：范围控件，会生成 <code>from_xxx</code>、<code>to_xxx</code> 宏</li>
+                            <li><var>string</var>：字符串</li>
+                            <li><var>number</var> / <var>number.multiple</var>：数字 / 数字列表</li>
+                            <li><var>enum</var> / <var>enum.multiple</var>：枚举下拉 / 多选</li>
+                            <li><var>bool</var>：布尔复选框</li>
+                            <li><var>combine</var>：拼接多个已有控件值，不单独渲染控件</li>
+                            <li><var>br</var>：仅用于换行布局</li>
                         </ul>
+                        <strong>常见 flag：</strong> <code>macro</code>、<code>raw</code>、<code>multiple</code>、<code>month</code>、<code>hour</code><br/>
+                        <strong>常见示例：</strong>
+                        <pre>
+${date|日期|-7 days,today|date_range.macro.raw(range:31)}
+${uid|UID||string.macro.raw}
+${status|状态|1|enum(1:成功,0:失败)}
+${business|业务类型|0|enum.macro.raw(ddy_page_business_type)}
+                        </pre>
+                        <strong>SQL 注释配置：</strong>
+                        <pre>
+-- @id=报表标题
+-- @dsn=default
+-- @chart=__auto__
+-- @chart=line:consume_amount,refund_amount
+-- @plugin_sum={"sum":true,"avg":true}
+-- @plugin_delay_series={"xAxis":"stat_date","series":["event_type"],"series_value":["event_count"]}
+-- @invisible=true
+                        </pre>
+                        <strong>表插件：</strong> <code>plugin_filter</code>、<code>plugin_sort</code>、<code>plugin_flip</code>、<code>plugin_sum</code>、<code>plugin_series</code>、<code>plugin_date_line</code>、<code>plugin_data_fluctuations</code><br/>
+                        <strong>字段插件：</strong> <code>ratio</code>、<code>date</code>、<code>time2str</code>、<code>enum</code>，也支持自定义 <code>ddy_field_xxx()</code><br/>
+                        <strong>列注释示例：</strong>
+                        <pre>
+request AS "Request", -- @{"json_display": true}
+uid AS "UID", -- @{"href":"/#/report/38?query=uid={uid}"}
+click/pv*100 AS "点击率", -- @{点击}/{曝光}*100
+                        </pre>
+                        <strong>动态报表扩展：</strong><br/>
+                        1. <code>ddy_set_page_data()</code>：PHP 直接输出报表块<br/>
+                        2. <code>ddy_dynamic_reports()</code>：运行时追加报表块<br/>
+                        3. <code>ddy_process_result()</code>：最终结果统一后处理<br/>
+                        4. <code>#!MARKDOWN</code> / <code>#!RAW</code>：显式指定输出模式<br/>
+                        <strong>可编辑报表：</strong><br/>
+                        配合 <code>options.edit</code>、<code>ddy_register_form_handler()</code>、<code>ddy_save_form_handler()</code> 使用。<br/>
+                        <strong>自定义筛选控件：</strong><br/>
+                        1. 用 <code>enum(...ddy_xxx)</code> 让 PHP 实时返回枚举选项<br/>
+                        2. 自定义 Filter 类并通过 <code>FilterFactory::register()</code> 注册<br/>
+                    </p>
+                </div>
+                <div class="note note-info" collapse="collapse_content_help">
+                    <h4 class="block">真实模板示例</h4>
+                    <p>
+                        <strong>1. 日期范围 + 枚举映射统计</strong>
+                        <pre>
+${date|日期|-7 days,today|date_range.macro.raw(range:31)};
+
+-- @id=渠道消耗
+SELECT
+    channel AS Channel,      -- @{"enum":"1:aibub"}
+    channel_id AS "渠道类型", -- @{"enum":"1:中转1,2:中转2,4:微软4,5:微软5"}
+    model_value,
+    SUM(consume_amount) AS consume_amount
+FROM user_api_call_record
+WHERE created_at BETWEEN '{from_date} 00:00:00' AND '{to_date} 00:00:00'
+GROUP BY channel, channel_id, model_value;
+                        </pre>
+                        <strong>2. 趋势图 + plugin_delay_series</strong>
+                        <pre>
+-- @id=每天分事件数据
+-- @plugin_delay_series={"xAxis":"time_date","series":["event_type"],"series_value":["event_count"]}
+-- @chart=__auto__
+-- @invisible=true
+SELECT
+    DATE_FORMAT(transaction_time, '%Y-%m-%d') AS time_date,
+    event_type,
+    COUNT(*) AS event_count
+FROM card_transaction
+GROUP BY time_date, event_type
+ORDER BY time_date DESC;
+                        </pre>
+                        <strong>3. PHP 宏推导 + 多报表块联查</strong>
+                        <pre>
+${card_id|card_id||string.macro.raw};
+${card_last4|card_last4||string.macro.raw};
+
+&lt;?php
+$card_id = ddy_data('card_id');
+$card_last4 = ddy_data('card_last4');
+if ($card_id) {
+    ddy_macro('real_card_id', $card_id, false);
+}
+if ($card_last4) {
+    $row = ddy_model('card', 'corpay')->select(['card_number_last4' => $card_last4]);
+    if ($row && count($row)) {
+        ddy_macro('real_card_id', $row[0]['card_id'], false);
+    }
+}
+?&gt;
+
+-- @id=card
+-- @plugin_flip=true
+-- {?real_card_id}
+SELECT * FROM card WHERE card_id = '{real_card_id}';
+                        </pre>
+                        <strong>4. JSON 字段高亮展示</strong>
+                        <pre>
+&lt;?php
+function ddy_field_json_display($config_value, $value, $field, $i, $row, $report) {
+    $data = json_decode($value, true);
+    return json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+}
+?&gt;
+
+SELECT
+    request AS "Request",   -- @{"json_display": true}
+    response AS "Response"  -- @{"json_display": true}
+FROM api_log
+ORDER BY id DESC
+LIMIT 100;
+                        </pre>
+                        <strong>5. PHP 直出翻转看板</strong>
+                        <pre>
+&lt;?php
+$rows = [
+    '余额' => 1200,
+    '冻结金额' => 300,
+    '可用余额' => 900,
+];
+ddy_set_page_data([
+    '余额看板' => [
+        'rows' => [$rows],
+        'options' => [
+            'plugin_flip' => true,
+        ],
+    ],
+]);
+?&gt;
+                        </pre>
+                        <strong>6. 可编辑报表</strong>
+                        <pre>
+&lt;?php
+ddy_set_table_options(0, [
+    'edit' => [
+        'pk' => 'officeCode',
+        'columns' => [
+            '国家' => [
+                'type' => 'select',
+                'name' => 'country',
+                'options' => [
+                    [ 'label' => '美国', 'value' => 'USA' ],
+                    [ 'label' => '中国', 'value' => 'China' ]
+                ]
+            ],
+            'phone' => []
+        ]
+    ]
+]);
+ddy_register_form_handler(function (&$error, $row_id, $data) {
+    $m = ddy_model('offices', 'demo');
+    return $m->update(['officeCode' => $row_id], $data) !== FALSE;
+});
+?&gt;
+                        </pre>
+                        <strong>7. 报警型报表</strong>
+                        <pre>
+settings:
+{
+    "alarm": {
+        "type": "lark"
+    }
+}
+
+content:
+-- @id=每日波动监控
+-- @plugin_data_fluctuations={"field":["consume_amount","order_count"],"threshold_percent":50}
+SELECT stat_date, consume_amount, order_count
+FROM daily_finance
+ORDER BY stat_date DESC;
+                        </pre>
                     </p>
                 </div>
                 <ui-codemirror ui-codemirror-opts="contentEditorOptions" ui-codemirror="{ onLoad : codemirrorLoaded }" ng-model="menu.dev_content" ui-refresh="refresh"></ui-codemirror>

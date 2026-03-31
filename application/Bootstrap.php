@@ -142,7 +142,47 @@ class Bootstrap extends Yaf\Bootstrap_Abstract {
     private function setCachedUser($uid, array $user)
     {
         $cache = new \GG\Cache\FileCache(self::BOOTSTRAP_CACHE_DIR);
-        $cache->set("user:{$uid}", serialize($user), self::USER_CACHE_TTL);
+        $cache->set(
+            "user:{$uid}",
+            serialize(self::sanitizeCachedUser($user)),
+            self::USER_CACHE_TTL
+        );
+    }
+
+    public static function clearCachedUser($uid)
+    {
+        if (!$uid) {
+            return;
+        }
+
+        self::unlinkCacheFile(self::BOOTSTRAP_CACHE_DIR, "user:{$uid}");
+    }
+
+    public static function clearAllCachedUsers()
+    {
+        if (!is_dir(self::BOOTSTRAP_CACHE_DIR)) {
+            return;
+        }
+
+        foreach (glob(self::BOOTSTRAP_CACHE_DIR . '/*') ?: [] as $file) {
+            if (is_file($file)) {
+                @unlink($file);
+            }
+        }
+    }
+
+    private static function sanitizeCachedUser(array $user)
+    {
+        unset($user['password']);
+        return $user;
+    }
+
+    private static function unlinkCacheFile($cacheDir, $key)
+    {
+        $file = rtrim($cacheDir, '/') . '/' . md5($key);
+        if (file_exists($file)) {
+            @unlink($file);
+        }
     }
 }
 /* End of file <`2:filename`>.php */

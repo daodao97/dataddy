@@ -183,6 +183,7 @@ class UserController extends MY\Controller_Abstract {
         }
 
         M('user')->delete(array('id' => $id));
+        Bootstrap::clearCachedUser($id);
 
         R('title', '用户删除:' . $user['nick']);
 
@@ -255,6 +256,7 @@ class UserController extends MY\Controller_Abstract {
         }
 
         if ($ok) {
+            Bootstrap::clearCachedUser($id);
             $user = $m->find($id);
             R('title', '用户保存:' . $user['nick']);
             return response([ 'id' => $id ]);

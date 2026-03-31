@@ -187,6 +187,7 @@ class RoleController extends MY\Controller_Abstract {
         R('title', '角色删除:' . $role['name']);
 
         M('role')->delete(array('id' => $id));
+        Bootstrap::clearAllCachedUsers();
 
         return response($role);
     }
@@ -248,6 +249,7 @@ class RoleController extends MY\Controller_Abstract {
         }
 
         if ($ok) {
+            Bootstrap::clearAllCachedUsers();
             $role = $m->find($id);
             R('title', '角色保存:' . $role['name']);
             return response([ 'id' => $id ]);
