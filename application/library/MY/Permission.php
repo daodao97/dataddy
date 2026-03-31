@@ -24,9 +24,11 @@ class Permission
 
     public function __construct($roles = '', $is_admin = FALSE)
     {
+        $start = microtime(TRUE);
         $this->_is_admin = $is_admin;
 
         if ($roles) {
+            $role_load_start = microtime(TRUE);
             if (is_string($roles)) {
                 $roles = M('role')->select([ 'id' => explode(',', $roles) ]);
             }
@@ -37,9 +39,18 @@ class Permission
             }
             unset($role);
             $this->_roles = $roles;
+            $this->logProfile('permission.load_roles', $role_load_start, [
+                'roles' => count($this->_roles),
+            ]);
         }
 
         $this->_permissions = $this->_getPermissions($roles);
+        $this->logProfile('permission.construct_total', $start, [
+            'roles' => count($this->_roles),
+            'sub_roles' => count($this->_sub_roles),
+            'maps' => count($this->_permissions),
+            'is_admin' => $is_admin ? 1 : 0,
+        ]);
         // ddy_echo($this->_permissions);
     }
 
@@ -238,7 +249,11 @@ class Permission
 
     protected function _getPermissions($roles)
     {
+        $start = microtime(TRUE);
         $role_permissions = [ $this->_default_permissions['public'] ];
+        $sub_role_query_count = 0;
+        $menu_branch_query_count = 0;
+        $menu_branch_row_count = 0;
         if ($this->_roles) {
 
             $role_permissions[] = $this->_default_permissions['user'];
@@ -248,7 +263,13 @@ class Permission
             while ($roles) {
                 $role = array_pop($roles);
 
+                $sub_role_start = microtime(TRUE);
                 $sub_roles = M('role')->select([ 'parent_id' => $role['id'] ]);
+                $sub_role_query_count++;
+                $this->logProfile('permission.query_sub_roles', $sub_role_start, [
+                    'role_id' => $role['id'],
+                    'rows' => is_array($sub_roles) ? count($sub_roles) : 0,
+                ]);
                 if ($sub_roles) {
                     foreach ($sub_roles as $sub_role) {
                         if (!isset($expand_roles[$sub_role['id']])) {
@@ -273,7 +294,14 @@ class Permission
 
                     $rids = array_keys($resource);
                     $branch_data = [];
+                    $menu_branch_start = microtime(TRUE);
                     $rows = M('menuItem')->select([ 'parent_id' => $rids, 'disabled' => 0 ], [ 'select' => 'id,parent_id,type' ]);
+                    $menu_branch_query_count++;
+                    $menu_branch_row_count += is_array($rows) ? count($rows) : 0;
+                    $this->logProfile('permission.query_menu_branch', $menu_branch_start, [
+                        'parents' => count($rids),
+                        'rows' => is_array($rows) ? count($rows) : 0,
+                    ]);
                     foreach ($rows as $row) {
                         $branch_data[$row['parent_id']][] = $row;
                     }
@@ -325,7 +353,25 @@ class Permission
             $role_permission_map_list[] = $role_permission_map;
         }
 
+        $this->logProfile('permission.get_permissions_total', $start, [
+            'role_permissions' => count($role_permissions),
+            'sub_role_queries' => $sub_role_query_count,
+            'menu_branch_queries' => $menu_branch_query_count,
+            'menu_branch_rows' => $menu_branch_row_count,
+            'maps' => count($role_permission_map_list),
+        ]);
+
         return $role_permission_map_list;
+    }
+
+    protected function logProfile($stage, $start, $context = [])
+    {
+        $cost = round((microtime(TRUE) - $start) * 1000, 2);
+        $parts = [ "{$stage} cost={$cost}ms" ];
+        foreach ($context as $key => $value) {
+            $parts[] = "{$key}={$value}";
+        }
+        log_message(implode(' ', $parts), LOG_INFO);
     }
 
     protected function _inPermissionMap($resource, $perm_map, $mode = 'r')
