@@ -40,17 +40,17 @@ class GlobalDb extends Base {
             $config = $phyConfig[$dbGlobals[$clusterId]['map']];
             if (isset($config['write']['db_user'])) {
                 $dbUser = $config['write']['db_user'];
-            } else if (isset($config['db_user'])) {
+            } else if (array_key_exists('db_user', $config)) {
                 $dbUser = $config['db_user'];
             } else {
-                $dbUser = $phyConfig['db_user'];
+                $dbUser = $phyConfig['db_user'] ?? NULL;
             }
             if (isset($config['write']['db_pwd'])) {
                 $dbPwd = $config['write']['db_pwd'];
-            } else if (isset($config['db_pwd'])) {
+            } else if (array_key_exists('db_pwd', $config)) {
                 $dbPwd = $config['db_pwd'];
             } else {
-                $dbPwd = $phyConfig['db_pwd'];
+                $dbPwd = $phyConfig['db_pwd'] ?? NULL;
             }
 
             if (!isset($config['read'])) {

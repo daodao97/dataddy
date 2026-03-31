@@ -64,13 +64,13 @@ function ddy_db($dsn)
 
         $user = $pass = $host = $port = $database = NULL;
 
-        if (preg_match('@^(\w+)\:(.+)\@(\w+)\((.+?)\)/(\w+)$@', $real_dsn, $ma)) {
+        if (preg_match('@^([^:]+)\:(.+)\@(\w+)\((.+?)\)/(.+)$@', $real_dsn, $ma)) {
             list ($full, $user, $pass, $protocol, $uri, $database) = $ma;
             if ($protocol != 'tcp') {
 
                 throw new \Exception("Dsn unsupport protocol : $protocol");
             }
-            list ($host, $port) = explode(':', $uri);
+            list ($host, $port) = explode(':', $uri, 2);
             if (!$host || !$port) {
 
                 throw new \Exception("Dsn parse uri error:$uri");
