@@ -371,7 +371,7 @@ class Permission
         foreach ($context as $key => $value) {
             $parts[] = "{$key}={$value}";
         }
-        log_message(implode(' ', $parts), LOG_INFO);
+        log_message(implode(' ', $parts), LOG_NOTICE);
     }
 
     protected function _inPermissionMap($resource, $perm_map, $mode = 'r')

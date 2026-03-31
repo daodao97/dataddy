@@ -104,7 +104,7 @@ class Bootstrap extends Yaf\Bootstrap_Abstract {
         foreach ($context as $key => $value) {
             $parts[] = "{$key}={$value}";
         }
-        log_message(implode(' ', $parts), LOG_INFO);
+        log_message(implode(' ', $parts), LOG_NOTICE);
     }
 }
 /* End of file <`2:filename`>.php */
