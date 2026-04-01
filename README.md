@@ -632,6 +632,18 @@ ${business|业务类型|0|enum.macro.raw(0:所有,taobao:淘宝,tencent:腾讯)}
 - `enum.multiple`：多选
 - `macro`：本质上也是枚举控件，只是更强调“生成宏”
 
+常用附加参数：
+
+- `minwidth:150`：下拉框最小宽度
+- `order`：前端允许排序
+- `tags`：前端标签模式
+
+例如：
+
+```sql
+${business|业务线|0|enum.macro.raw(minwidth:220,0:全部,1:aicoding,2:gemini)}
+```
+
 ### 5.9 `date_range` 日期范围控件
 
 这是最常见的报表控件之一，会自动生成两个宏：
@@ -656,6 +668,31 @@ WHERE created_at BETWEEN '{from_date} 00:00:00' AND '{to_date} 23:59:59'
 - 默认要求必须同时选择开始和结束日期
 - 未显式指定时，普通日期范围默认最大 31 天
 - `month` 模式也可用于月范围选择
+
+按月范围选择的推荐写法：
+
+```sql
+${month|月份范围|-2 months,this month|date_range.month.macro.raw}
+```
+
+这会生成：
+
+- `{from_month}`
+- `{to_month}`
+
+值格式都是 `Y-m`，例如 `2026-02`、`2026-04`。
+
+按月查询时，通常需要在 SQL 里补月初 / 下月月初：
+
+```sql
+WHERE created_at >= DATE_FORMAT('{from_month}-01', '%Y-%m-%d')
+  AND created_at < DATE_ADD(DATE_FORMAT('{to_month}-01', '%Y-%m-%d'), INTERVAL 1 MONTH)
+```
+
+注意：
+
+- `date_range.month` 不会自动套默认 `range:31`
+- 更适合做月报、经营分析、月度对比
 
 ### 5.10 `time_range` 时间范围控件
 
@@ -838,6 +875,15 @@ function ddy_page_business_type() {
 - 对象列表
 - 数据量大、不适合一次性全量下发的下拉框
 
+如果你自己实现基于 `Filter_SelectBase` 的控件，还可以进一步定制：
+
+- `use_ajax_data`：是否走远程搜索
+- `text_with_id`：选项文本里是否带 ID
+- `value_type`：值类型是否为整数
+- `prefix_match`：是否前缀匹配
+- `value_column` / `text_column`：值列、展示列
+- `filter_conditions`：固定筛选条件
+
 ### 5.19 推荐写法
 
 实际写报表时，优先用下面几类组合：
@@ -863,7 +909,276 @@ ${show_all|显示全部|0|bool}
 建议 AI 生成 SQL 时优先用 `-- {?xxx}` 这种显式控制，
 不要手写一堆字符串拼接。
 
-## 6. SQL 注释指令
+## 6. 动态 SQL 构造与模板宏
+
+这一块是很多旧报表最依赖、但最容易被忽略的能力。
+
+按当前代码实现，SQL 模板的大致处理顺序是：
+
+1. 解析 `${...}` 控件定义，生成筛选器和宏
+2. 执行模板中的内嵌 PHP
+3. 按分号拆分多段 SQL
+4. 对每段 SQL 执行 `_macro()`，替换 `{...}` 宏
+5. 解析列尾 `-- @...` 字段配置
+6. 清理注释，执行 SQL
+7. 再根据字段 `def`、表插件、字段插件处理结果
+
+对应代码主要在：
+
+- `application/library/MY/Data/Template.php:_runSql()`
+- `application/library/MY/Data/Template.php:_macro()`
+- `application/library/MY/Data/Template.php:processRowTpl()`
+
+### 6.1 宏替换基础语法
+
+模板引擎当前支持这些核心写法：
+
+- `{name}`：直接替换宏值
+- `{?name}`：宏为空时，删除当前行
+- `{?!name}`：宏不为空时，删除当前行
+- `{4?name}`：宏为空时，连续删除 4 行
+- `{a,b}`：组合多个宏，只要有值就拼接
+- `{?a,b}`：组合条件判断
+- `{name[raw]}`：带 pipeline 的宏写法
+- `{date[+1 day|ymd|raw]}`：带参数和管道的宏写法
+
+其中最常用的，不是花哨表达式，而是下面三种：
+
+```sql
+{name}
+{?name}
+{?!name}
+```
+
+### 6.2 `-- {?xxx}` 为什么能控制 SQL 结构
+
+这是这套系统里最重要的“动态 SQL 构造”能力。
+
+如果条件写在一行尾部：
+
+```sql
+SUM(income) AS '收入', -- {?show_income}
+```
+
+当 `show_income` 为空时，这一整行会被删掉；有值时，这一列保留。
+
+如果条件单独占一行，且位于 SQL 片段前面：
+
+```sql
+-- {?cond}
+-- @id=示例二
+SELECT ...
+```
+
+当 `cond` 为空时，当前行开始后的整段 SQL 都会被跳过。
+
+所以要区分两种用途：
+
+- 行尾 `-- {?xxx}`：控制一列、一个条件、一个 `JOIN` 是否保留
+- 行首单独 `-- {?xxx}`：控制整个报表块是否执行
+
+### 6.3 `combine(...)` 的真实作用
+
+`combine` 不会渲染控件，只会生成一个新的宏。
+
+```sql
+${show_income|显示收入|on|bool.macro};
+${show_cost|显示成本|0|bool.macro};
+${cond|||combine(show_income,show_cost)};
+```
+
+这里的 `cond` 本质是把 `show_income`、`show_cost` 两个宏拼起来。
+只要其中任意一个有值，`{cond}` / `{?cond}` 就会判定为真。
+
+这类写法适合：
+
+- 某几个筛选条件只要命中一个，就显示某段 SQL
+- 多个开关共同控制一组列
+- 给整段子查询、整段 UNION 加显式开关
+
+### 6.4 真实样例：按条件删列、删整段 SQL、替换表名
+
+下面这段来自 `menuitem.sql` 的“sql语句的报表”样例，基本覆盖了最常用的动态 SQL 写法：
+
+```sql
+${date|日期|-6 days,yesterday|date_range.macro(range:30)};
+${obj_id|对象id||testObj.macro.raw};
+${show_income|显示收入|on|bool.macro};
+${show_cost|显示成本|0|bool.macro};
+${cond|||combine(show_income,show_cost)};
+
+-- @id=示例一
+SELECT
+    me.date AS '日期',
+    CONCAT(obj.name , '【', obj.id,'】') AS '对象',
+    SUM(request) AS '请求',
+    SUM(click) AS '点击',
+    SUM(impression) AS '展现',
+    SUM(income) AS '收入', -- {?show_income}
+    SUM(cost) AS '成本', -- {?show_cost}
+    SUM(click)/SUM(request)*100 AS 'CTR' -- @{点击}/{请求}*100
+FROM test_income_report AS me
+LEFT JOIN test_obj AS obj
+ON me.obj_id = obj.id
+WHERE me.date >= {?from_date}
+AND me.date <= {?to_date}
+AND me.obj_id IN ({?obj_id})
+GROUP BY me.date, me.obj_id;
+
+-- {?cond}
+-- @id=示例二
+SELECT
+    me.date AS '日期',
+    CONCAT(obj.name , '【', obj.id,'】') AS '对象',
+    SUM(income) AS '收入', -- {?show_income}
+    SUM(cost) AS '成本', -- {?show_cost}
+    SUM(impression) AS '展现'
+FROM test_income_report AS me
+LEFT JOIN test_obj AS obj
+ON me.obj_id = obj.id
+WHERE me.date >= {?from_date}
+AND me.date <= {?to_date}
+AND me.obj_id IN ({?obj_id})
+GROUP BY me.date, me.obj_id;
+
+-- @id=示例三
+SELECT
+    me.date AS '日期',
+    CONCAT(obj.name , '【', obj.id,'】') AS '对象'
+FROM {income} AS me
+LEFT JOIN {obj} AS obj
+ON me.obj_id = obj.id
+WHERE date >= {?from_date}
+AND date <= {?to_date}
+AND me.obj_id IN ({?obj_id})
+GROUP BY me.date, me.obj_id;
+```
+
+这一段可以拆成四个能力点理解：
+
+1. `date_range.macro` 生成 `{from_date}` / `{to_date}`
+2. `testObj.macro.raw` 生成可直接用于 `IN (...)` 的对象列表宏
+3. `-- {?show_income}` / `-- {?show_cost}` 动态控制列是否出现
+4. `{income}` / `{obj}` 直接从系统宏里替换真实表名
+
+### 6.5 行插件式写法，适合控制哪些 SQL 片段
+
+虽然代码注释里写的是“解析行插件”，但这里更准确地说，
+它是在做“按宏条件删行 / 保留行”的模板处理。
+
+最适合控制的片段有：
+
+- `SELECT` 列
+- `WHERE` 条件
+- `JOIN` 语句
+- `UNION ALL` 中的某一支
+- 整段报表块
+
+典型示例：
+
+```sql
+WHERE 1 = 1
+AND username = '{username}' -- {?username}
+AND status = {status} -- {?status}
+AND parent_id = {parent_id} -- {?parent_id}
+```
+
+这样写比在 PHP 里手拼 SQL 更稳，因为：
+
+- 可读性更高
+- 条件是否生效一眼可见
+- 不容易漏掉空值分支
+- AI 生成时也更稳定
+
+### 6.6 字段注释 `-- @{...}` 与结果字段 `def`
+
+列尾除了写 JSON，也可以直接写表达式：
+
+```sql
+SUM(click)/SUM(request)*100 AS 'CTR' -- @{点击}/{请求}*100
+```
+
+当前实现会把它解析成字段配置：
+
+```json
+{ "def": "{点击}/{请求}*100" }
+```
+
+随后在结果处理阶段，通过 `processRowTpl(..., $excute = true)`
+把 `{点击}`、`{请求}` 替换成当前行或汇总行的真实值，再执行表达式。
+
+这类写法适合：
+
+- 比例列
+- 汇总 / 平均行的二次计算
+- 依赖其他列实时推导的展示字段
+
+如果要写结构化字段配置，用 JSON：
+
+```sql
+request AS '请求', -- @{"json_display":true}
+```
+
+如果要写公式型字段配置，直接写表达式：
+
+```sql
+profit_rate AS '利润率' -- @round({利润}/{销售额}*100, 2)
+```
+
+### 6.7 行模板变量还能引用列位置和相邻行
+
+`processRowTpl()` 还支持更细的行内替换：
+
+- `{字段名}`：当前行字段
+- `{0}`、`{1}`：按当前行列顺序取第 0 / 1 列
+- `{字段名@-1}`：上一行同字段
+- `{字段名@1}`：下一行同字段
+
+这类能力主要给字段 `def`、字段插件、提示链接使用。
+
+例如：
+
+```json
+{
+  "def": "{利润}-{利润@-1}"
+}
+```
+
+适合做：
+
+- 环比差值
+- 同行对比
+- 用隐藏列拼接跳转 URL
+
+### 6.8 推荐给 AI 的动态 SQL 写法
+
+当需要让 AI 生成“条件可选”的报表时，优先让它按下面模式输出：
+
+```sql
+${date|日期|-7 days,today|date_range.macro.raw(range:31)};
+${uid|UID||string.macro.raw};
+${show_extra|显示扩展列|0|bool.macro};
+
+-- @id=订单统计
+SELECT
+    stat_date,
+    order_count,
+    consume_amount,
+    extra_amount -- {?show_extra}
+FROM daily_order_stats
+WHERE stat_date >= '{from_date}'
+  AND stat_date <= '{to_date}'
+  AND uid = '{uid}' -- {?uid}
+ORDER BY stat_date DESC;
+```
+
+不要优先生成下面这种难维护的写法：
+
+- PHP 里手动字符串拼 SQL
+- `WHERE 1=1` 后拼很多 `if`
+- 在前端拼接 SQL 片段
+
+## 7. SQL 注释指令
 
 每段 SQL 前常用这些注释：
 
@@ -890,7 +1205,7 @@ GROUP BY time_date, event_type
 ORDER BY time_date DESC;
 ```
 
-## 7. 表插件、字段插件与自定义 PHP 插件
+## 8. 表插件、字段插件与自定义 PHP 插件
 
 这套报表引擎里，“插件”主要分三层：
 
@@ -1437,7 +1752,7 @@ function ddy_process_result(&$result, $data) {
 ?>
 ```
 
-## 8. 图表配置
+## 9. 图表配置
 
 前端 `ReportController.js` 已支持几种常见简写。
 
@@ -1484,7 +1799,7 @@ ddy_set_chart_options('渠道统计', [
 ]);
 ```
 
-## 9. PHP 报表高级能力
+## 10. PHP 报表高级能力
 
 `application/helpers/dataddy.php` 里还藏了不少实用函数：
 
@@ -1601,7 +1916,7 @@ ddy_register_form_handler(function (&$error, $row_id, $data) {
 - `sql_cache`：SQL 结果缓存秒数
 - `disable_cache`：页面级禁用缓存
 
-## 10. 菜单 settings 与图标
+## 11. 菜单 settings 与图标
 
 后端菜单树会优先读取 `settings.icon`。
 如果没配置，目录默认是 `icon-bar-chart`。
@@ -1637,7 +1952,7 @@ ddy_register_form_handler(function (&$error, $row_id, $data) {
 - `settings.icon` 优先使用后端已大量使用的 `icon-*`
 - 如果是菜单管理树上的类型图标，可参考现有 `fa fa-*`
 
-## 11. 可直接给 AI 的报表生成示例
+## 12. 可直接给 AI 的报表生成示例
 
 ### 示例 1：最小可用 SQL 报表
 
@@ -1738,7 +2053,7 @@ GROUP BY stat_date
 ORDER BY stat_date DESC;
 ```
 
-## 12. 真实模板示例库
+## 13. 真实模板示例库
 
 这一节不是“最小示例”，而是从 `menuitem.sql` 里抽出来的
 高复用真实模板。后续让 AI 生成报表时，最好直接指定
@@ -1992,6 +2307,178 @@ FROM daily_finance
 ORDER BY stat_date DESC;
 ```
 
+### 模板 J：月范围 + 枚举过滤 + 双数据源经营汇总
+
+适合：
+
+- 做月度经营分析
+- 同时汇总两个数据源
+- 需要“是否排除代付/其他”这种业务过滤器
+- 一页放业务明细和老板视角总览
+
+```sql
+${month|月份范围|-2 months,this month|date_range.month.macro.raw}
+${exclude_proxy|是否排除代付/其他|0|enum.macro.raw(0:全部,1:排除代付和其他)}
+
+-- @id=月度业务汇总
+-- @merge_cell=report_month,business_line
+WITH merged_data AS (
+    SELECT 
+        DATE_FORMAT(created_at, '%Y-%m') AS report_month,
+        SUBSTRING_INDEX(product_id, '_', 1) AS business_type,
+        amount AS order_amount,
+        amount AS profit_amount
+    FROM wildcard.user_openai_share_apply_record
+    WHERE pay_status = 1
+      AND created_at >= DATE_FORMAT('{from_month}-01', '%Y-%m-%d')
+      AND created_at < DATE_ADD(DATE_FORMAT('{to_month}-01', '%Y-%m-%d'), INTERVAL 1 MONTH)
+
+    UNION ALL
+
+    SELECT 
+        DATE_FORMAT(o.created_at, '%Y-%m') AS report_month,
+        SUBSTRING_INDEX(o.goods_type, '_', 2) AS business_type,
+        o.amount AS order_amount,
+        CASE 
+            WHEN b.cdk_code_id IS NOT NULL THEN o.amount
+            ELSE (o.amount - o.origin_price)
+        END AS profit_amount
+    FROM wildai_prod.user_order o
+    LEFT JOIN wildcard.user_bind_record b ON o.order_no = b.order_no
+    WHERE o.pay_status = 1
+      AND o.created_at >= DATE_FORMAT('{from_month}-01', '%Y-%m-%d')
+      AND o.created_at < DATE_ADD(DATE_FORMAT('{to_month}-01', '%Y-%m-%d'), INTERVAL 1 MONTH)
+),
+normalized_data AS (
+    SELECT
+        report_month,
+        business_type AS sku,
+        CASE 
+            WHEN business_type IN ('gpt_plus','gpt_pro') THEN 'GPT 代付'
+            WHEN business_type = 'aicoding' THEN 'aicoding'
+            WHEN business_type = 'gemini' THEN 'gemini 随心用'
+            WHEN business_type = 'claude' THEN 'claude 随心用'
+            WHEN business_type IN ('claude_pro','claude_max') THEN 'claude 代付'
+            WHEN business_type = 'chatgpt' THEN 'gpt 随心用'
+            WHEN business_type = 'sora' THEN 'sora 随心用'
+            WHEN business_type IN ('kiro_power','kiro_pro') THEN 'kiro 代付'
+            WHEN business_type IN ('x_premium','x_basic') THEN 'x 代付'
+            ELSE '其他/补偿'
+        END AS business_line,
+        order_amount,
+        profit_amount
+    FROM merged_data
+)
+SELECT
+    report_month,
+    business_line,
+    sku,
+    COUNT(*) AS order_count,
+    SUM(order_amount) AS total_sales,
+    SUM(profit_amount) AS total_profit,
+    CONCAT(
+        ROUND(
+            SUM(profit_amount) / SUM(SUM(profit_amount)) OVER(PARTITION BY report_month) * 100,
+            2
+        ),
+        '%'
+    ) AS profit_ratio
+FROM normalized_data
+WHERE
+    '{exclude_proxy}' = '0'
+    OR (
+        '{exclude_proxy}' = '1'
+        AND business_line NOT LIKE '%代付'
+        AND business_line <> '其他/补偿'
+    )
+GROUP BY report_month, business_line, sku
+ORDER BY report_month DESC, total_profit DESC;
+
+-- @id=老板视角_经营总览
+WITH raw_data AS (
+    SELECT 
+        DATE(created_at) AS stat_date,
+        DATE_FORMAT(created_at, '%Y-%m') AS report_month,
+        SUBSTRING_INDEX(product_id, '_', 1) AS business_type,
+        amount AS order_amount,
+        amount AS profit_amount
+    FROM wildcard.user_openai_share_apply_record
+    WHERE pay_status = 1
+      AND created_at >= DATE_FORMAT('{from_month}-01', '%Y-%m-%d')
+      AND created_at < DATE_ADD(DATE_FORMAT('{to_month}-01', '%Y-%m-%d'), INTERVAL 1 MONTH)
+
+    UNION ALL
+
+    SELECT 
+        DATE(o.created_at) AS stat_date,
+        DATE_FORMAT(o.created_at, '%Y-%m') AS report_month,
+        SUBSTRING_INDEX(o.goods_type, '_', 2) AS business_type,
+        o.amount AS order_amount,
+        CASE 
+            WHEN b.cdk_code_id IS NOT NULL THEN o.amount
+            ELSE (o.amount - o.origin_price)
+        END AS profit_amount
+    FROM wildai_prod.user_order o
+    LEFT JOIN wildcard.user_bind_record b ON o.order_no = b.order_no
+    WHERE o.pay_status = 1
+      AND o.created_at >= DATE_FORMAT('{from_month}-01', '%Y-%m-%d')
+      AND o.created_at < DATE_ADD(DATE_FORMAT('{to_month}-01', '%Y-%m-%d'), INTERVAL 1 MONTH)
+),
+normalized_data AS (
+    SELECT
+        stat_date,
+        report_month,
+        CASE 
+            WHEN business_type IN ('gpt_plus','gpt_pro') THEN 'GPT 代付'
+            WHEN business_type = 'aicoding' THEN 'aicoding'
+            WHEN business_type = 'gemini' THEN 'gemini 随心用'
+            WHEN business_type = 'claude' THEN 'claude 随心用'
+            WHEN business_type IN ('claude_pro','claude_max') THEN 'claude 代付'
+            WHEN business_type = 'chatgpt' THEN 'gpt 随心用'
+            WHEN business_type = 'sora' THEN 'sora 随心用'
+            WHEN business_type IN ('kiro_power','kiro_pro') THEN 'kiro 代付'
+            WHEN business_type IN ('x_premium','x_basic') THEN 'x 代付'
+            ELSE '其他/补偿'
+        END AS business_line,
+        order_amount,
+        profit_amount
+    FROM raw_data
+),
+filtered_data AS (
+    SELECT *
+    FROM normalized_data
+    WHERE
+        '{exclude_proxy}' = '0'
+        OR (
+            '{exclude_proxy}' = '1'
+            AND business_line NOT LIKE '%代付'
+            AND business_line <> '其他/补偿'
+        )
+)
+SELECT
+    report_month AS 月份,
+    CASE
+        WHEN report_month = DATE_FORMAT(CURDATE(), '%Y-%m') THEN '未完整'
+        ELSE '完整'
+    END AS 月份状态,
+    COUNT(*) AS 总订单数,
+    ROUND(SUM(order_amount), 2) AS 总销售额,
+    ROUND(SUM(profit_amount), 2) AS 总利润,
+    ROUND(SUM(profit_amount) / NULLIF(COUNT(DISTINCT stat_date), 0), 2) AS 日均利润,
+    ROUND(SUM(order_amount) / NULLIF(COUNT(*), 0), 2) AS 平均客单价
+FROM filtered_data
+GROUP BY report_month
+ORDER BY report_month DESC;
+```
+
+这个模板的关键点：
+
+- 用 `date_range.month.macro.raw` 做月范围
+- 用 `enum.macro.raw` 做业务过滤器
+- 用 `UNION ALL` 合并两个来源
+- 用 `@merge_cell` 优化月度分组显示
+- 一页同时输出业务明细和老板视角总览
+
 ### 模板选择建议
 
 - 查明细：优先模板 A、B
@@ -2002,8 +2489,9 @@ ORDER BY stat_date DESC;
 - 文档页：优先模板 G
 - 可编辑后台：优先模板 H
 - 预警通知：优先模板 I
+- 月度经营分析：优先模板 J
 
-## 13. 给 AI 的提示词模板
+## 14. 给 AI 的提示词模板
 
 如果你要让 AI 直接产出 `menuitem` 配置，建议至少给它这些信息：
 
@@ -2035,7 +2523,7 @@ ORDER BY stat_date DESC;
 6. 请直接输出可插入 menuitem 的 content、settings，并尽量使用 dataddy 已支持的注释语法和插件语法。
 ```
 
-## 14. 生成规则总结
+## 15. 生成规则总结
 
 让 AI 生成报表配置时，优先遵守这几条：
 

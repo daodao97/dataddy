@@ -222,6 +222,32 @@ ${business|业务类型|0|enum.macro.raw(ddy_page_business_type)}
 -- @plugin_delay_series={"xAxis":"stat_date","series":["event_type"],"series_value":["event_count"]}
 -- @invisible=true
                         </pre>
+                        <strong>动态 SQL 构造：</strong>
+                        <pre>
+${date|日期|-6 days,yesterday|date_range.macro.raw(range:30)};
+${obj_id|对象id||testObj.macro.raw};
+${show_income|显示收入|on|bool.macro};
+${show_cost|显示成本|0|bool.macro};
+${cond|||combine(show_income,show_cost)};
+
+SELECT
+    stat_date,
+    SUM(income) AS '收入', -- {?show_income}
+    SUM(cost) AS '成本' -- {?show_cost}
+FROM test_income_report
+WHERE stat_date >= '{from_date}'
+AND stat_date <= '{to_date}'
+AND obj_id IN ({?obj_id})
+GROUP BY stat_date;
+
+-- {?cond}
+-- @id=仅在收入或成本开启时展示
+SELECT * FROM test_income_report;
+                        </pre>
+                        <strong>说明：</strong><br/>
+                        1. <code>{name}</code> 直接替换宏值，<code>{?name}</code> 宏为空时删除当前行，<code>{?!name}</code> 宏非空时删除当前行。<br/>
+                        2. 行尾 <code>-- {?xxx}</code> 适合控制列、条件、JOIN；单独一行的 <code>-- {?xxx}</code> 可控制整个 SQL 块是否执行。<br/>
+                        3. <code>combine(a,b)</code> 不渲染控件，只生成一个组合宏，常用于多个开关共同控制一段 SQL。<br/>
                         <strong>表插件：</strong> <code>plugin_filter</code>、<code>plugin_sort</code>、<code>plugin_flip</code>、<code>plugin_sum</code>、<code>plugin_series</code>、<code>plugin_date_line</code>、<code>plugin_data_fluctuations</code><br/>
                         <strong>字段插件：</strong> <code>ratio</code>、<code>date</code>、<code>time2str</code>、<code>enum</code>，也支持自定义 <code>ddy_field_xxx()</code><br/>
                         <strong>列注释示例：</strong>
