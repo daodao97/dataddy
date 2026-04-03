@@ -15,6 +15,7 @@ class Data_PHPSandBox
             'allow_variables',
             'allow_escaping',
             'allow_closures',
+            'allow_casting',
         ], true);
         $sandbox->setFuncValidator(function($function_name, \PHPSandbox\PHPSandbox $sandbox)
         {

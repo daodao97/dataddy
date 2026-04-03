@@ -42,7 +42,7 @@ class Data_Template
             $this->_sandbox = new \PHPSandbox\PHPSandbox;
             #$this->_sandbox->error_level = E_ALL & ~E_DEPRECATED & ~E_STRICT & ~E_WARNING & ~E_NOTICE;
             #$this->_sandbox->restore_error_level = FALSE;
-            $this->_sandbox->set_option(['allow_functions', 'allow_variables', 'allow_escaping', 'allow_closures'], TRUE);
+            $this->_sandbox->set_option(['allow_functions', 'allow_variables', 'allow_escaping', 'allow_closures', 'allow_casting'], TRUE);
             $this->_sandbox->set_func_validator(function($function_name, \PHPSandbox\PHPSandbox $sandbox) use ($self) {
                 $allow_functions = [
                     'print', 'var_dump', 'json_encode', 'json_decode', 'count', 'array', 'sizeof',
